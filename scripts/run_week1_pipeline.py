@@ -22,7 +22,7 @@ from src.annotate import draw_detections_on_frames, make_annotated_video  # noqa
 from src.config import load_config  # noqa: E402
 from src.detect_objects import run_detection  # noqa: E402
 from src.extract_frames import extract_frames  # noqa: E402
-from src.mock_data import SCENARIO_TO_CLASS, generate_all_mock_videos  # noqa: E402
+from src.mock_data import generate_all_mock_videos  # noqa: E402
 from src.utils import ensure_dir, video_id_from_path  # noqa: E402
 
 RAW_VIDEO_DIR = Path("data/raw_videos")

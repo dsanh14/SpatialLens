@@ -13,7 +13,6 @@ import math
 from pathlib import Path
 from typing import Dict, List
 
-import numpy as np
 import pandas as pd
 
 from .utils import ensure_dir, image_diagonal

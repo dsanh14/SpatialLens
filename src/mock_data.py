@@ -183,21 +183,20 @@ def generate_all_mock_videos(output_dir: str | Path, config: dict) -> List[str]:
     return paths
 
 
-def generate_mock_detections_for_frames(
+def compute_mock_detection_rows(
     frame_paths: List[str | Path],
     scenario: str,
-    output_dir: str | Path,
     video_id: str | None = None,
 ) -> List[dict]:
-    """Produce deterministic mock detections matching the synthetic objects.
+    """Pure in-memory: compute deterministic mock detection rows.
 
-    The bbox geometry is recomputed from the same scenario rules used when
-    drawing the mock videos, then proportionally rescaled to the actual size
-    of each extracted frame (which may differ from the source video size if
+    Bbox geometry is recomputed from the same scenario rules used to draw
+    the mock videos, then proportionally rescaled to the actual size of
+    each extracted frame (which may differ from the source video size if
     the user changed ``video.resize_width``).
 
-    Returns a list of detection dicts and also writes CSV + JSON files into
-    ``output_dir``.
+    No files are written here — see :func:`generate_mock_detections_for_frames`
+    for the variant that also writes CSV/JSON.
     """
     if scenario not in SCENARIO_TO_CLASS:
         raise ValueError(
@@ -242,7 +241,24 @@ def generate_mock_detections_for_frames(
             "cy": cy,
             "area": area,
         })
+    return rows
 
+
+def generate_mock_detections_for_frames(
+    frame_paths: List[str | Path],
+    scenario: str,
+    output_dir: str | Path,
+    video_id: str | None = None,
+) -> List[dict]:
+    """Compute mock detections AND write CSV + JSON into ``output_dir``.
+
+    Thin wrapper over :func:`compute_mock_detection_rows`. Kept as a
+    public helper so the spec is satisfied; the main pipeline uses the
+    in-memory variant and lets :mod:`src.detect_objects` handle saving.
+    """
+    rows = compute_mock_detection_rows(
+        frame_paths=frame_paths, scenario=scenario, video_id=video_id,
+    )
     out_dir = ensure_dir(output_dir)
     vid = video_id or scenario
     csv_path = out_dir / f"{vid}_detections.csv"
@@ -250,5 +266,4 @@ def generate_mock_detections_for_frames(
     pd.DataFrame(rows).to_csv(csv_path, index=False)
     with json_path.open("w", encoding="utf-8") as f:
         json.dump(rows, f, indent=2)
-
     return rows

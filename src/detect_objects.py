@@ -15,11 +15,10 @@ import json
 from pathlib import Path
 from typing import List, Optional
 
-import cv2
 import pandas as pd
 from tqdm import tqdm
 
-from .mock_data import generate_mock_detections_for_frames
+from .mock_data import compute_mock_detection_rows
 from .utils import ensure_dir
 
 DETECTION_COLUMNS = [
@@ -143,13 +142,15 @@ def _run_mock_detection(
     video_id: str,
     mock_scenario: Optional[str],
 ) -> pd.DataFrame:
-    """Generate deterministic mock detections for a scenario."""
+    """Generate deterministic mock detections for a scenario.
+
+    Returns the DataFrame only — file writing is done once by
+    :func:`run_detection` using the caller's ``output_dir``.
+    """
     scenario = mock_scenario or video_id
-    out_tmp = ensure_dir(Path("outputs") / "detections")
-    rows = generate_mock_detections_for_frames(
+    rows = compute_mock_detection_rows(
         frame_paths=frame_paths,
         scenario=scenario,
-        output_dir=out_tmp,
         video_id=video_id,
     )
     if not rows:
