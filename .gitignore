@@ -1,0 +1,73 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Project-specific generated artifacts. The directory scaffolding is preserved
+# via .gitkeep files so the pipeline can write into these locations on a fresh
+# clone, but the actual artifacts are ignored.
+data/raw_videos/*
+!data/raw_videos/.gitkeep
+
+data/frames/*
+!data/frames/.gitkeep
+
+data/mock_videos/*
+!data/mock_videos/.gitkeep
+
+data/processed/*
+!data/processed/.gitkeep
+
+outputs/annotated_frames/*
+!outputs/annotated_frames/.gitkeep
+
+outputs/annotated_videos/*
+!outputs/annotated_videos/.gitkeep
+
+outputs/detections/*
+!outputs/detections/.gitkeep
+
+outputs/tracks/*
+!outputs/tracks/.gitkeep
+
+outputs/motion/*
+!outputs/motion/.gitkeep
+
+outputs/plots/*
+!outputs/plots/.gitkeep
+
+outputs/summaries/*
+!outputs/summaries/.gitkeep
+
+# YOLO weights (downloaded at runtime). Keep out of git.
+*.pt
