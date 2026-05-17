@@ -1,0 +1,5 @@
+video_id,track_id,class_name,predicted_label,true_label,notes,first_frame,last_frame,evidence
+bike_approaching_left,bicycle_1,bicycle,approaching,approaching,clear approach,0,23,bbox growth
+person_walking_away,person_1,person,moving_away,moving_away,clear shrink,0,23,bbox shrank
+scooter_crossing_left_to_right,skateboard_1,skateboard,crossing_left_to_right,approaching,intentional disagreement to test eval,0,23,crossing far enough that we count it as approaching for testing
+static_nonhazard,person_1,person,static,static,no motion,0,23,low motion

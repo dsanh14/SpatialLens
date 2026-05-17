@@ -1,4 +1,4 @@
-"""SpatialLens Assist source package (Weeks 1-2 pipeline)."""
+"""SpatialLens Assist source package (Weeks 1-3 pipeline)."""
 
 __all__ = [
     "config",
@@ -13,4 +13,8 @@ __all__ = [
     "motion_features",
     "summarize",
     "visualize",
+    "hazard_classifier",
+    "alerts",
+    "evaluation",
+    "report_outputs",
 ]

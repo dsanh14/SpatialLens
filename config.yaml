@@ -1,6 +1,6 @@
 project:
   name: "SpatialLens Assist"
-  weeks: "1-2"
+  weeks: "1-3"
 
 video:
   sample_fps: 2
@@ -49,3 +49,30 @@ mock:
     - "scooter_crossing_left_to_right"
     - "person_walking_away"
     - "static_nonhazard"
+
+# Week 3 — final hazard classification + evaluation.
+hazard:
+  approach_score_threshold: 0.55
+  crossing_threshold_frac_width: 0.08
+  static_threshold_frac_diagonal: 0.04
+  bbox_growth_threshold: 0.15
+  bbox_shrink_threshold: -0.15
+  flow_threshold: 1.0
+  frame_diff_overlap_threshold: 0.08
+  center_motion_threshold_frac: 0.05
+  use_depth_if_available: false  # depth module not implemented; bbox growth is the
+                                 # main proxy for "approaching". Leave false unless
+                                 # a depth backend is added later.
+
+evaluation:
+  label_file: "data/labels/hazard_labels.csv"
+  output_dir: "outputs/evaluation"
+
+alerts:
+  save_alerts_json: true
+  save_alerts_txt: true
+  include_confidence: true
+
+final_outputs:
+  export_slide_assets: true
+  export_demo_video: true

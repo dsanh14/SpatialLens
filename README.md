@@ -1,58 +1,62 @@
 # SpatialLens Assist: Motion-Aware Hazard Detection for Campus Navigation
 
-SpatialLens Assist aims to detect moving campus hazards for blind/low-vision
-pedestrians. It analyzes short walkway videos of bikes, scooters, and
-pedestrians. **Weeks 1–2** implement video processing, object detection,
-tracking, frame differencing, optical flow, and motion feature extraction.
-**Week 3** will implement the final hazard classifier and evaluation.
+## Problem
 
-This repo is a solo CS131 final project.
+Blind and low-vision pedestrians moving through a campus need awareness of
+moving hazards — bikes, scooters, and other pedestrians. A static label like
+"bike" is not enough; what matters is whether that bike is **approaching**,
+**crossing**, **moving away**, or **static**. SpatialLens Assist is a
+prototype computer vision pipeline that takes a short campus walkway video
+and reasons about per-object motion to produce assistive alerts such as
+"Bike approaching from the left."
 
-## Current status
+This is a solo 3-week CS131 final project. It is **not** a deployable
+navigation tool — see the *Limitations* section.
 
-- **Week 1**: perception pipeline — video loading, frame extraction, object
-  detection (Ultralytics YOLO or mock), annotated frames/video.
-- **Week 2**: tracking + motion features — simple IoU/centroid tracker, frame
-  differencing, Farneback optical flow, bbox-area growth, per-track motion
-  feature tables, detection/track summaries, plots.
-- **Week 3 (not implemented yet)**: final hazard classifier
-  (`approaching`, `crossing left-to-right`, `crossing right-to-left`,
-  `moving away`, `static`, `uncertain`), evaluation, slides + report.
+## What the system does
 
-`TODO(Week 3)` markers in the code show exactly where the hazard classifier
-will plug in.
+Given a short campus walkway video, the pipeline:
 
-## Dataset plan
+1. **Detects objects** per frame (Ultralytics YOLO `yolov8n`, COCO classes:
+   `person`, `bicycle`, `motorcycle`, `skateboard`). A `mock` backend is
+   also available so the full pipeline runs without any model download.
+2. **Tracks objects** across frames with a simple IoU + centroid matcher
+   (per class), producing stable `track_id`s like `bicycle_1`, `person_1`.
+3. **Computes motion features per track** — centroid trajectory, bounding-box
+   growth / shrinkage, Farneback optical flow inside the bbox, and frame
+   differencing overlap.
+4. **Classifies each track** as one of six hazard labels:
+   `approaching`, `crossing_left_to_right`, `crossing_right_to_left`,
+   `moving_away`, `static`, `uncertain`.
+5. **Generates short assistive alerts** ("Scooter crossing left-to-right.").
+6. **Evaluates** against a manually labeled CSV when one is provided.
+7. **Exports slide-ready assets** (annotated frames, plots, hazard video,
+   alerts) into `outputs/slide_assets/{video_id}/`.
 
-Real campus videos will be collected and dropped into `data/raw_videos/` in
-2–3 days. Until then, **mock mode** generates synthetic videos so the full
-Week 1–2 pipeline can be tested without any real videos and without a GPU.
+## Computer vision methods used
 
-### Video scenarios to collect
+- **Detection** — Ultralytics YOLO (`yolov8n.pt`, COCO).
+- **Tracking** — simple per-class IoU + centroid-distance matcher with
+  weighted scoring (`0.7 * IoU + 0.3 * (1 - normalized centroid distance)`).
+- **Centroid trajectory analysis** — `dx_total`, `dy_total`, normalized
+  displacement.
+- **Bounding-box growth/shrinkage** — `bbox_growth_ratio = (end_area − start_area) / start_area`.
+- **Optical flow** — OpenCV Farneback, median dx/dy and mean magnitude
+  inside each bbox.
+- **Frame differencing** — thresholded absolute difference + morphological
+  open/close, then fraction of bbox area covered by the motion mask.
+- **Rule-based hazard classification** — the main CV contribution of the
+  project. Combines an `approach_score` (weighted blend of bbox growth,
+  center motion, frame-diff overlap, flow magnitude) with horizontal
+  displacement and shrink/growth thresholds. Every decision carries an
+  `evidence` string explaining why.
+- **Evaluation** — overall accuracy, per-class accuracy, confusion matrix,
+  per-class precision/recall/F1, macro F1, and a focus on
+  `approaching` precision/recall/F1.
 
-1. Bike approaching from front-left, 10–12 seconds.
-2. Scooter crossing left-to-right, 8–10 seconds.
-3. Person walking away, 10–12 seconds.
-4. Static bike/person non-hazard, 8 seconds.
-5. Person crossing right-to-left, 8–10 seconds.
-6. Mixed scene (multiple agents), 12–15 seconds.
-
-### Safety note
-
-Film controlled, slow, low-traffic scenes. Do not stage dangerous
-near-collisions. Treat all subjects respectfully and avoid filming people who
-have not consented to be on camera.
-
-### Class / model note
-
-The default YOLO model (`yolov8n.pt`, COCO classes) recognizes
-`person`, `bicycle`, `motorcycle`, and `skateboard`, but **does not have a
-dedicated `scooter` class**. In practice, scooters are usually detected as
-some combination of `person` + `skateboard` / `motorcycle` / `bicycle`
-depending on the model and angle. This is documented again in the final
-report as a known limitation; the Week 3 hazard classifier will operate on
-motion features, not on the raw class name alone, so this limitation is
-partially mitigated.
+The detector is the least important piece. **The contribution is the
+motion-reasoning layer** (tracking → motion features → hazard rules →
+alerts).
 
 ## Quickstart
 
@@ -60,131 +64,189 @@ partially mitigated.
 pip install -r requirements.txt
 ```
 
-### Run the full pipeline on mock data (works today, no real videos needed)
+### Run on synthetic mock data (works today, no real videos needed)
 
 ```bash
-python scripts/run_week1_week2_pipeline.py --mock --config config.yaml
+python scripts/run_final_pipeline.py --mock --config config.yaml
 ```
 
-This will:
+This generates four synthetic videos in `data/mock_videos/` and runs the
+full Week 1 + 2 + 3 pipeline on each.
 
-1. Generate four synthetic videos in `data/mock_videos/`.
-2. Extract frames into `data/frames/<video_id>/`.
-3. Run mock detections (deterministic, no model download required).
-4. Track objects across frames.
-5. Compute frame differencing and Farneback optical flow per detection.
-6. Aggregate per-track motion features.
-7. Save annotated detection + tracking videos, plots, and a text/JSON summary.
+### Run on real videos
 
-### Run on a single real video (once available)
+1. Drop your `.mp4` / `.mov` / `.avi` / `.mkv` / `.m4v` files into
+   `data/raw_videos/`. The filename (without extension) becomes the
+   `video_id` used throughout `outputs/`.
+2. Optionally inspect a clip first:
+   ```bash
+   python scripts/inspect_video.py --video data/raw_videos/example.mp4
+   ```
+3. Run on a single video:
+   ```bash
+   python scripts/run_final_pipeline.py \
+       --video data/raw_videos/example.mp4 \
+       --config config.yaml
+   ```
+4. Or run on everything in `data/raw_videos/`:
+   ```bash
+   python scripts/run_final_pipeline.py --all --config config.yaml
+   ```
+
+### Run just one stage
 
 ```bash
-python scripts/run_week1_week2_pipeline.py \
-    --video data/raw_videos/example.mp4 \
-    --config config.yaml
-```
-
-### Run on all real videos in `data/raw_videos/`
-
-```bash
+# Weeks 1-2 only (extract, detect, track, motion features)
 python scripts/run_week1_week2_pipeline.py --all --config config.yaml
+
+# Week 3 only (hazards + alerts + plots + evaluation + slides)
+python scripts/run_week3_pipeline.py --all --config config.yaml
 ```
 
-### Inspect a video's metadata
+## Labeling and evaluation
+
+Manual evaluation is optional but recommended for the final report.
+
+1. Generate a label template (per-video files **and** one combined file):
+   ```bash
+   python scripts/create_label_template.py --all --config config.yaml
+   ```
+   This produces `data/labels/{video_id}_hazard_label_template.csv` per
+   video and `data/labels/hazard_labels_template.csv` (combined).
+
+2. Open the combined template and fill in the `true_label` column with
+   one of:
+   ```
+   approaching | crossing_left_to_right | crossing_right_to_left
+   moving_away | static | uncertain
+   ```
+
+3. Save it as `data/labels/hazard_labels.csv` (path is configurable via
+   `evaluation.label_file` in `config.yaml`).
+
+4. Re-run Week 3 to get evaluation metrics:
+   ```bash
+   python scripts/run_week3_pipeline.py --all --config config.yaml
+   ```
+
+Metrics land in `outputs/evaluation/`:
+- `<video_id>_evaluation_summary.json`
+- `<video_id>_confusion_matrix.csv`
+- `all_videos_evaluation_summary.json` (aggregate)
+
+## Slide-ready assets
+
+After a successful pipeline run, `outputs/slide_assets/{video_id}/`
+contains a numbered set of files (`01_sample_frame.jpg`,
+`02_detection_frame.jpg`, …) plus `README_slide_assets.txt` which tells
+you which asset to use for which slide (Method, Results, Demo, …).
+
+You can also re-export the slide-assets folder without rerunning the
+pipeline:
 
 ```bash
-python scripts/inspect_video.py --video data/raw_videos/example.mp4
+python scripts/export_final_demo_assets.py --all --config config.yaml
 ```
 
-### Regenerate just the mock videos
+## Expected outputs
 
-```bash
-python scripts/generate_mock_videos.py --config config.yaml
-```
+Per `video_id`, after `run_final_pipeline.py`:
 
-### Run unit tests
-
-```bash
-pytest tests/
-```
+| Path | Contents |
+|------|----------|
+| `data/frames/<vid>/` | sampled JPEG frames |
+| `outputs/detections/<vid>_detections.{csv,json}` | per-frame detections |
+| `outputs/tracks/<vid>_tracks.csv` | per-frame track rows + flow + frame-diff overlap |
+| `outputs/tracks/<vid>_track_features.csv` | per-track aggregated motion features |
+| `outputs/motion/<vid>/` | optical flow + frame-diff visualizations |
+| `outputs/hazards/<vid>_hazards.{csv,json}` | per-track hazard labels + evidence |
+| `outputs/alerts/<vid>_alerts.{txt,json}` | assistive alerts |
+| `outputs/annotated_frames/<vid>{,_tracks,_hazards}/` | overlay JPEGs |
+| `outputs/annotated_videos/<vid>_{detections,tracks,hazards}.mp4` | demo videos |
+| `outputs/plots/<vid>_*.png` | trajectories, bbox area, approach scores, hazard timeline, confusion matrix |
+| `outputs/summaries/<vid>_final_summary.{txt,json}` | one-pager per video |
+| `outputs/evaluation/<vid>_evaluation_summary.json` | metrics (when labels exist) |
+| `outputs/slide_assets/<vid>/` | curated set of images / videos / README |
 
 ## Repo layout
 
 ```
-spatiallens-assist/
+SpatialLens/
 ├── README.md
 ├── requirements.txt
 ├── config.yaml
 ├── data/
-│   ├── raw_videos/        # drop your collected videos here
+│   ├── raw_videos/        # drop your real videos here
 │   ├── mock_videos/       # generated synthetic videos
 │   ├── frames/            # extracted frames per video_id
-│   └── processed/
+│   └── labels/            # hazard label templates + final labels CSV
 ├── outputs/
-│   ├── detections/        # per-video detection CSV + JSON
-│   ├── tracks/            # per-video tracks CSV + track features CSV
-│   ├── motion/            # frame-diff / optical-flow visualizations
-│   ├── annotated_frames/  # frames with bbox / track overlays
-│   ├── annotated_videos/  # mp4 of annotated frames
-│   ├── plots/             # matplotlib plots for the deck
-│   └── summaries/         # human-readable summary per video
-├── src/                   # library code (see modules below)
-├── scripts/               # CLI entry points
-├── notebooks/
-│   └── 01_week1_week2_check.ipynb
-└── tests/
+│   ├── detections/  tracks/  motion/
+│   ├── hazards/     alerts/  evaluation/
+│   ├── annotated_frames/  annotated_videos/
+│   ├── plots/       summaries/  slide_assets/
+├── src/
+│   ├── config.py            # YAML loader + Week 3 defaults backfill
+│   ├── utils.py             # shared path / color / video helpers
+│   ├── mock_data.py         # synthetic videos + deterministic mock detections
+│   ├── extract_frames.py    # video -> JPEGs
+│   ├── detect_objects.py    # YOLO or mock detection backend
+│   ├── tracking.py          # IoU + centroid tracker
+│   ├── frame_diff.py        # motion masks + per-bbox overlap
+│   ├── optical_flow.py      # Farneback flow + per-bbox dx/dy/magnitude
+│   ├── motion_features.py   # per-track aggregated features (Week 2)
+│   ├── annotate.py          # detection + track OpenCV overlays
+│   ├── visualize.py         # matplotlib plots + hazard frame overlay
+│   ├── hazard_classifier.py # Week 3: rule-based 6-class hazard classifier
+│   ├── alerts.py            # Week 3: assistive alert text generation
+│   ├── evaluation.py        # Week 3: accuracy / PRF / confusion matrix
+│   ├── report_outputs.py    # Week 3: curate slide_assets/ per video
+│   └── summarize.py         # Week 1-2 + final per-video summaries
+├── scripts/
+│   ├── inspect_video.py
+│   ├── generate_mock_videos.py
+│   ├── run_week1_pipeline.py
+│   ├── run_week2_pipeline.py
+│   ├── run_week1_week2_pipeline.py
+│   ├── run_week3_pipeline.py
+│   ├── run_final_pipeline.py
+│   ├── create_label_template.py
+│   ├── export_final_demo_assets.py
+│   └── week1_week2_check.py
+├── tests/    (pytest, all CPU-fast)
+└── notebooks/01_week1_week2_check.ipynb
 ```
 
-### `src/` modules
+## Limitations
 
-- `config.py` — YAML loader + validation.
-- `utils.py` — small shared helpers (paths, color maps, video I/O).
-- `mock_data.py` — synthetic videos + deterministic mock detections.
-- `extract_frames.py` — sample + resize frames from a video.
-- `detect_objects.py` — YOLO or mock detection backend.
-- `annotate.py` — draw bboxes / tracks, write annotated videos.
-- `tracking.py` — IoU + centroid tracker, per-class.
-- `frame_diff.py` — frame differencing motion masks + per-bbox overlap.
-- `optical_flow.py` — Farneback flow + per-bbox dx/dy/magnitude.
-- `motion_features.py` — per-track Week 2 motion feature table.
-- `summarize.py` — Week 1–2 text/JSON summary per video.
-- `visualize.py` — matplotlib plots used in the slide deck.
+- **No dedicated `scooter` class** in COCO YOLO — scooters often appear as
+  some combination of `person` + `skateboard` / `motorcycle` / `bicycle`.
+  The Week 3 classifier reasons on motion, not class, so this is partially
+  mitigated.
+- **Camera motion** materially affects optical flow. Film with a stable
+  camera; if not, the `avg_flow_mag` cue becomes noisy and the classifier
+  leans more heavily on bbox growth.
+- **Bbox-growth as a proxy for "approaching"** is an approximation. Without
+  a depth backend (intentionally out of scope), a track far from the
+  camera that grows because of perspective changes can be misread.
+- **Simple IoU + centroid tracker** can swap IDs when same-class objects
+  cross or overlap heavily. Switching to ByteTrack / SORT is left as
+  future work.
+- **No safety deployment**. This is a 3-week prototype on controlled,
+  low-traffic clips — not a production assistive technology. Real-world
+  use would require careful HCI work, latency budgets, redundancy, and
+  user testing with the target community.
+- **No model training**. The classifier is rule-based, which is easier to
+  explain in the report but doesn't generalize the way a learned model
+  could.
 
-## Expected outputs (per `video_id`)
+## Final report framing
 
-After a successful pipeline run, you should see:
-
-- `outputs/detections/<video_id>_detections.csv` and `.json`
-- `outputs/tracks/<video_id>_tracks.csv`
-- `outputs/tracks/<video_id>_track_features.csv`
-- `outputs/motion/<video_id>/frame_diff_XXXX.jpg`
-- `outputs/motion/<video_id>/flow_XXXX.jpg`
-- `outputs/annotated_frames/<video_id>/frame_XXXX.jpg`
-- `outputs/annotated_frames/<video_id>_tracks/frame_XXXX.jpg`
-- `outputs/annotated_videos/<video_id>_detections.mp4`
-- `outputs/annotated_videos/<video_id>_tracks.mp4`
-- `outputs/plots/<video_id>_detections_per_frame.png`
-- `outputs/plots/<video_id>_trajectories.png`
-- `outputs/plots/<video_id>_bbox_area.png`
-- `outputs/plots/<video_id>_motion_features.png`
-- `outputs/summaries/<video_id>_week1_week2_summary.txt` and `.json`
-
-## Limitations (Weeks 1–2)
-
-- **No dedicated `scooter` class** in COCO YOLO — see note above.
-- YOLO detections can be noisy on low-light or low-resolution video.
-- The Week 2 motion labels (`growing`, `shrinking`, `static`, `moving`,
-  `left_to_right`, `right_to_left`) are **preliminary features**, not the
-  final hazard alerts. They are inputs to the Week 3 classifier.
-- Farneback optical flow assumes a roughly stable camera. If the camera
-  shakes a lot, per-bbox flow is unreliable.
-- The simple IoU + centroid tracker can swap IDs when two objects of the
-  same class cross or strongly overlap. A more robust tracker
-  (ByteTrack / SORT) is intentionally out of scope for Weeks 1–2.
-
-## Roadmap
-
-- **Week 3**: combine per-track motion features (displacement direction,
-  bbox growth, flow magnitude, frame-diff overlap, track length) into a
-  rule-based or lightweight learned hazard classifier and evaluate on real
-  campus videos. Polish the slide deck and final report.
+> *SpatialLens Assist is a prototype for motion-aware hazard detection from
+> short campus walkway videos. The main computer vision contribution is
+> the motion-reasoning layer: combining tracking, centroid trajectory,
+> bounding-box scale, optical flow, and frame differencing into a
+> rule-based, explainable per-track hazard classifier that produces
+> short assistive alerts. The system is evaluated on a small set of
+> manually labeled tracks across mock and real videos. It is not a
+> deployable navigation tool.*
