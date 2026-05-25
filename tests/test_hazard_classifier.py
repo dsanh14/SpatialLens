@@ -219,12 +219,39 @@ def test_short_track_with_motion_is_uncertain_short_track():
     assert out["confidence"] == "low"
 
 
-def test_short_track_with_no_motion_still_static_not_uncertain():
-    """`static` should still win over `short_track` because a 1-frame
-    track with zero motion is legitimately static, not ambiguous."""
+def test_one_frame_track_with_no_motion_is_uncertain_not_static():
+    """Regression test for the IMG_4973/person_1 manual-review finding.
+
+    A 1-frame track cannot reliably be classified as `static`, because
+    "not moving" requires at least two observations to establish.
+    `short_track` must win over `static` for sub-min_track_frames
+    tracks regardless of measured motion (which is trivially zero with
+    a single sample anyway).
+    """
     clf = HazardClassifier(CONFIG)
     row = _feature_row(
         num_frames=1, first_frame=5, last_frame=5,
+        bbox_growth_ratio=0.0,
+        dx_total=0.0,
+        total_displacement_norm=0.0,
+        avg_flow_mag=0.0,
+        avg_frame_diff_overlap=0.0,
+    )
+    out = clf.classify_track(row, image_width=IMG_W, image_height=IMG_H)
+    assert out["hazard_label"] == "uncertain"
+    assert out["uncertain_reason"] == "short_track"
+    # Evidence string should explain that we can't *confirm* it's static
+    # from a single frame, not just regurgitate "motion was detected".
+    assert "cannot confirm" in out["evidence"].lower()
+
+
+def test_long_track_with_no_motion_still_static():
+    """The static rule still fires for genuine multi-frame stillness —
+    we only widened the short_track guard for sub-min_track_frames
+    tracks, not all of them."""
+    clf = HazardClassifier(CONFIG)
+    row = _feature_row(
+        num_frames=11, first_frame=0, last_frame=10,
         bbox_growth_ratio=0.0,
         dx_total=0.0,
         total_displacement_norm=0.0,

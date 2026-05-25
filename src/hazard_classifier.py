@@ -362,28 +362,47 @@ class HazardClassifier:
         # `uncertain_reason` is set only when the label is `uncertain` and
         # documents *which* near-miss rule was closest to firing. This is
         # the column to filter / aggregate on in the final report.
+        #
+        # IMPORTANT: `short_track` is checked *before* `static`. A 1- or
+        # 2-frame track cannot reliably be classified as anything — even
+        # "static" — because there simply isn't enough temporal evidence
+        # to establish that the object isn't moving. (Manual labeling
+        # confirmed this: IMG_4973/person_1 was a 1-frame track that the
+        # classifier called `static`, but a human reviewer correctly
+        # said `uncertain` because direction can't be verified from a
+        # single detection.) For tracks with >= min_track_frames, the
+        # `static` rule still applies as before.
         evidence_parts: List[str] = []
         uncertain_reason: str = ""
-        if not moved:
-            label = "static"
-            evidence_parts.append(
-                f"low motion (disp_norm={total_disp_norm:.3f}, "
-                f"flow_mag={avg_flow_mag:.2f}, "
-                f"frame_diff_overlap={avg_fd_overlap:.2f})"
-            )
-        elif num_frames < self.min_track_frames:
+        if num_frames < self.min_track_frames:
             # Too few detected positions to trust trajectory- or growth-based
             # cues. Surface this explicitly so the reader knows the
             # classifier is being cautious, not failing silently.
             label = "uncertain"
             uncertain_reason = "short_track"
             plural = "s" if num_frames != 1 else ""
+            if moved:
+                motion_descr = (
+                    f"motion was detected (flow_mag={avg_flow_mag:.2f}) "
+                    f"but direction is not trustworthy"
+                )
+            else:
+                motion_descr = (
+                    f"no motion measurable (flow_mag={avg_flow_mag:.2f}, "
+                    f"disp_norm={total_disp_norm:.3f}) but cannot confirm "
+                    f"the object is static from a single observation"
+                )
             evidence_parts.append(
                 f"track is only {num_frames} frame{plural} long "
                 f"(min={self.min_track_frames}), so trajectory and "
-                f"bbox-growth cues are unreliable; motion was detected "
-                f"(flow_mag={avg_flow_mag:.2f}) but direction is not "
-                f"trustworthy"
+                f"bbox-growth cues are unreliable; {motion_descr}"
+            )
+        elif not moved:
+            label = "static"
+            evidence_parts.append(
+                f"low motion (disp_norm={total_disp_norm:.3f}, "
+                f"flow_mag={avg_flow_mag:.2f}, "
+                f"frame_diff_overlap={avg_fd_overlap:.2f})"
             )
         elif (approach_score >= self.approach_threshold
               and growth_ratio > self.growth_threshold):
