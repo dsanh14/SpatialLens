@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.3.1)  25 MAY 2026 02:03
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.3.1)  25 MAY 2026 02:46
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -419,25 +419,38 @@ Package hyperref Info: Link coloring ON on input line 36.
 \openout3 = `main.out'.
 
 
-Underfull \hbox (badness 5119) in paragraph at lines 51--52
+
+! LaTeX Error: Undefined color `blue!60!black'.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.42 ...atialLens}{github.com/dsanh14/SpatialLens}
+                                                  
+You're in trouble here.  Try typing  <return>  to proceed.
+If that doesn't work, type  X <return>  to quit.
+
+
+Underfull \hbox (badness 5119) in paragraph at lines 52--53
 \OT1/cmtt/m/n/10 crossing[]right[]to[]left\OT1/cmr/m/n/10 , \OT1/cmtt/m/n/10 mo
 ving[]away\OT1/cmr/m/n/10 , \OT1/cmtt/m/n/10 static\OT1/cmr/m/n/10 , or
  []
 
 LaTeX Font Info:    Trying to load font information for OMS+cmr on input line 5
-6.
+7.
 (/usr/local/texlive/2026basic/texmf-dist/tex/latex/base/omscmr.fd
 File: omscmr.fd 2024/11/19 v2.5n Standard LaTeX font definitions
 )
 LaTeX Font Info:    Font shape `OMS/cmr/m/n' in size <10> not available
-(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 56.
+(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 57.
 LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <7> on input line 56.
+(Font)              <7> on input line 57.
 LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <5> on input line 56.
+(Font)              <5> on input line 57.
 
 ! Undefined control sequence.
-l.57 ...,centroid matcher (weighted $0.7\cdot\text
+l.58 ...,centroid matcher (weighted $0.7\cdot\text
                                                   {IoU} + 0.3\cdot(1-\hat d)...
 The control sequence at the end of the top line
 of your error message was never \def'ed. If you have
@@ -446,7 +459,7 @@ spelling (e.g., `I\hbox'). Otherwise just continue,
 and I'll forget about whatever was undefined.
 
 ! Undefined control sequence.
-l.59 ... Classifier:} a rule cascade over $\{\text
+l.60 ... Classifier:} a rule cascade over $\{\text
                                                   {growth\_ratio}, \text{dx\...
 The control sequence at the end of the top line
 of your error message was never \def'ed. If you have
@@ -455,7 +468,7 @@ spelling (e.g., `I\hbox'). Otherwise just continue,
 and I'll forget about whatever was undefined.
 
 ! Undefined control sequence.
-l.59 ...ascade over $\{\text{growth\_ratio}, \text
+l.60 ...ascade over $\{\text{growth\_ratio}, \text
                                                   {dx\_norm}, \text{approach...
 The control sequence at the end of the top line
 of your error message was never \def'ed. If you have
@@ -464,7 +477,7 @@ spelling (e.g., `I\hbox'). Otherwise just continue,
 and I'll forget about whatever was undefined.
 
 ! Undefined control sequence.
-l.59 ...ext{growth\_ratio}, \text{dx\_norm}, \text
+l.60 ...ext{growth\_ratio}, \text{dx\_norm}, \text
                                                   {approach\_score}\}$ that ...
 The control sequence at the end of the top line
 of your error message was never \def'ed. If you have
@@ -473,7 +486,7 @@ spelling (e.g., `I\hbox'). Otherwise just continue,
 and I'll forget about whatever was undefined.
 
 ! Undefined control sequence.
-l.67 ...rong\_crossing} branch (fires when $|\text
+l.68 ...rong\_crossing} branch (fires when $|\text
                                                   {dx\_norm}|>0.50$) before ...
 The control sequence at the end of the top line
 of your error message was never \def'ed. If you have
@@ -482,48 +495,48 @@ spelling (e.g., `I\hbox'). Otherwise just continue,
 and I'll forget about whatever was undefined.
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 69--70
+Underfull \hbox (badness 10000) in paragraph at lines 70--71
 \OT1/cmtt/m/n/10 minimum[]matching[]threshold=0.95\OT1/cmr/m/n/10 ), Byte-Track
 
  []
 
-<figures/confusion_matrix.png, id=4, 505.89pt x 397.485pt>
+<figures/confusion_matrix.png, id=5, 505.89pt x 397.485pt>
 File: figures/confusion_matrix.png Graphic file (type png)
 <use figures/confusion_matrix.png>
-Package pdftex.def Info: figures/confusion_matrix.png  used on input line 74.
+Package pdftex.def Info: figures/confusion_matrix.png  used on input line 75.
 (pdftex.def)             Requested size: 249.33183pt x 195.90352pt.
 
 Package caption Warning: The option `hypcap=true' will be ignored for this
-(caption)                particular \caption on input line 75.
+(caption)                particular \caption on input line 76.
 See the caption package documentation for explanation.
 
-<figures/uncertain_reasons.png, id=6, 614.295pt x 325.215pt>
+<figures/uncertain_reasons.png, id=7, 614.295pt x 325.215pt>
 File: figures/uncertain_reasons.png Graphic file (type png)
 <use figures/uncertain_reasons.png>
-Package pdftex.def Info: figures/uncertain_reasons.png  used on input line 82.
+Package pdftex.def Info: figures/uncertain_reasons.png  used on input line 83.
 (pdftex.def)             Requested size: 249.33183pt x 131.99916pt.
 
 Package caption Warning: The option `hypcap=true' will be ignored for this
-(caption)                particular \caption on input line 83.
+(caption)                particular \caption on input line 84.
 See the caption package documentation for explanation.
 
 LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <9> on input line 83.
+(Font)              <9> on input line 84.
 LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <6> on input line 83.
+(Font)              <6> on input line 84.
 [1
 
 {/usr/local/texlive/2026basic/texmf-var/fonts/map/pdftex/updmap/pdftex.map} <./
 figures/confusion_matrix.png>]
-<figures/annotated_example.jpg, id=29, 602.25pt x 722.7pt>
+<figures/annotated_example.jpg, id=30, 602.25pt x 722.7pt>
 File: figures/annotated_example.jpg Graphic file (type jpg)
 <use figures/annotated_example.jpg>
-Package pdftex.def Info: figures/annotated_example.jpg  used on input line 89.
+Package pdftex.def Info: figures/annotated_example.jpg  used on input line 90.
 (pdftex.def)             Requested size: 211.93358pt x 254.3162pt.
 
 
 Package caption Warning: The option `hypcap=true' will be ignored for this
-(caption)                particular \caption on input line 90.
+(caption)                particular \caption on input line 91.
 See the caption package documentation for explanation.
 
 [2 <./figures/uncertain_reasons.png> <./figures/annotated_example.jpg>]
@@ -532,10 +545,6 @@ See the caption package documentation for explanation.
 LaTeX2e <2025-11-01>
 L3 programming layer <2026-01-19>
  ***********
-
-
-LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
-
 Package rerunfilecheck Info: File `main.out' has not changed.
 (rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.
  ) 
@@ -561,10 +570,10 @@ c/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></usr/local/texlive/2026
 basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmti9.pfb></usr/local/texlive/2
 026basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt10.pfb></usr/local/texli
 ve/2026basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt9.pfb>
-Output written on main.pdf (2 pages, 366840 bytes).
+Output written on main.pdf (2 pages, 367453 bytes).
 PDF statistics:
- 104 PDF objects out of 1000 (max. 8388607)
- 69 compressed objects within 1 object stream
+ 105 PDF objects out of 1000 (max. 8388607)
+ 70 compressed objects within 1 object stream
  16 named destinations out of 1000 (max. 500000)
  16 words of extra memory for PDF output out of 10000 (max. 10000000)
 
