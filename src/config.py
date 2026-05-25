@@ -23,6 +23,7 @@ WEEK3_DEFAULTS: Dict[str, Any] = {
     "hazard": {
         "approach_score_threshold": 0.55,
         "crossing_threshold_frac_width": 0.08,
+        "strong_crossing_threshold_frac_width": 0.50,
         "static_threshold_frac_diagonal": 0.04,
         "bbox_growth_threshold": 0.15,
         "bbox_shrink_threshold": -0.15,

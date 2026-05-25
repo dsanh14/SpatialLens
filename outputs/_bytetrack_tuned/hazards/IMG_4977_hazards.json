@@ -1,0 +1,28 @@
+[
+  {
+    "video_id": "IMG_4977",
+    "track_id": "bicycle_1",
+    "class_name": "bicycle",
+    "hazard_label": "uncertain",
+    "uncertain_reason": "short_track",
+    "approach_score": 0.30000000000000004,
+    "crossing_score": 0.0,
+    "bbox_growth_ratio": 0.0,
+    "total_displacement_norm": 0.0,
+    "avg_flow_dx": -5.933884620666504,
+    "avg_flow_dy": 6.193833351135254,
+    "avg_flow_mag": 18.9450626373291,
+    "avg_frame_diff_overlap": 0.4072682537571485,
+    "dx_total": 0.0,
+    "dy_total": 0.0,
+    "start_cx": 113.64067840576172,
+    "start_cy": 1260.668701171875,
+    "num_frames": 1,
+    "first_frame": 14,
+    "last_frame": 14,
+    "image_width": 960.0,
+    "image_height": 1707.0,
+    "confidence": "low",
+    "evidence": "bicycle_1 classified as uncertain (short_track) because track is only 1 frame long (min=3), so trajectory and bbox-growth cues are unreliable; motion was detected (flow_mag=18.95) but direction is not trustworthy."
+  }
+]

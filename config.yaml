@@ -48,10 +48,21 @@ tracking:
   # Defaults match the supervision library defaults; tighten thresholds on
   # cleaner footage if you want fewer false positive tracks.
   bytetrack:
-    track_activation_threshold: 0.25
-    lost_track_buffer: 30
-    minimum_matching_threshold: 0.8
-    frame_rate: 30
+    # Tuned for low-fps offline footage (sample_fps=2). ByteTrack defaults
+    # (track_activation_threshold=0.25, frame_rate=30, minimum_matching=0.8)
+    # were designed for real-time 30fps streams with false-positive noise;
+    # on our footage those defaults dropped 62% of detections because:
+    # (a) Kalman-predicted positions over 0.5s gaps didn't match observed
+    #     positions tightly enough for the default matching threshold;
+    # (b) brief 1-2 frame detections never reached "activated" track state
+    #     and were silently discarded by supervision's ByteTrack output.
+    # The values below are tuned to be permissive enough that ByteTrack
+    # behaves more like a continuity-preserving wrapper around our raw
+    # detections at low fps. The frame_rate matches our actual sample_fps.
+    track_activation_threshold: 0.10
+    lost_track_buffer: 10
+    minimum_matching_threshold: 0.95
+    frame_rate: 2
 
 motion:
   static_threshold_frac_diagonal: 0.04
@@ -103,6 +114,16 @@ mock:
 hazard:
   approach_score_threshold: 0.55
   crossing_threshold_frac_width: 0.08
+  # Width fraction above which lateral motion is treated as the *dominant*
+  # intent of the track, overriding the approaching rule. Empirically the
+  # labeled dataset has a clean gap between approaching tracks (max |dx_norm|
+  # ~= 0.43) and crossing tracks (min |dx_norm| ~= 0.68); 0.50 sits in the
+  # middle of that gap. Tracks with both growth and lateral motion above
+  # this threshold are classified as crossing because the lateral signal
+  # dominates the safety-relevant intent (the object is going somewhere
+  # lateral, not directly at the camera). Bump to a very high value
+  # (e.g. 999) to disable this rule and revert to v1 behavior for ablation.
+  strong_crossing_threshold_frac_width: 0.50
   static_threshold_frac_diagonal: 0.04
   bbox_growth_threshold: 0.15
   bbox_shrink_threshold: -0.15

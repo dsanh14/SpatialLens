@@ -113,6 +113,12 @@ class HazardClassifier:
         haz = config.get("hazard", {})
         self.approach_threshold = float(haz.get("approach_score_threshold", 0.55))
         self.crossing_frac = float(haz.get("crossing_threshold_frac_width", 0.08))
+        # See config.yaml: above this normalized lateral threshold, the
+        # crossing rule overrides approaching (resolves the
+        # "approaching-vs-crossing" priority conflict for diagonal walkers).
+        self.strong_crossing_frac = float(
+            haz.get("strong_crossing_threshold_frac_width", 0.50)
+        )
         self.static_diag_frac = float(haz.get("static_threshold_frac_diagonal", 0.04))
         self.growth_threshold = float(haz.get("bbox_growth_threshold", 0.15))
         self.shrink_threshold = float(haz.get("bbox_shrink_threshold", -0.15))
@@ -404,6 +410,56 @@ class HazardClassifier:
                 f"flow_mag={avg_flow_mag:.2f}, "
                 f"frame_diff_overlap={avg_fd_overlap:.2f})"
             )
+        # --- v2 rule order ---
+        # The cascade below was reorganized in v2 based on a labeled
+        # evaluation across 11 real campus videos (61 tracks). The original
+        # v1 cascade was: approaching > crossing > moving_away > uncertain.
+        # That order produced two systematic failures on diagonal walkers:
+        #
+        #   (A) Strong lateral motion + slight bbox growth was labeled
+        #       `approaching` because the approach rule fired first, even
+        #       when the lateral signal clearly dominated the intent
+        #       (e.g. |dx_norm| ~ 0.7 across the frame).
+        #   (B) Bbox shrinking + lateral motion was labeled `crossing`
+        #       because the crossing rule fired before moving_away, even
+        #       when the depth signal clearly said the object was receding.
+        #
+        # v2 inserts a `moving_away` branch *before* the crossing branches
+        # (fixes B), and adds a `strong_crossing` branch *before*
+        # `approaching` for tracks with |dx_norm| > strong_crossing_frac
+        # (fixes A). The strong_crossing threshold (default 0.50) is set
+        # at the midpoint of an empirically observed gap between the max
+        # |dx_norm| of true-approaching tracks (~0.43) and the min of
+        # true-crossing tracks (~0.68).
+        elif growth_ratio < self.shrink_threshold:
+            # moving_away: bbox shrinkage is a robust depth-recession
+            # signal that overrides incidental lateral motion. (v2: moved
+            # above crossing.)
+            label = "moving_away"
+            evidence_parts.append(
+                f"bbox shrank: growth_ratio={growth_ratio:.2f} below "
+                f"{self.shrink_threshold:.2f}"
+            )
+            if image_width and abs(dx_norm) > self.crossing_frac:
+                evidence_parts.append(
+                    f"(also has lateral motion dx={dx_total:.1f}px "
+                    f"= {dx_norm*100:.1f}% of width, but bbox shrinkage "
+                    f"takes priority)"
+                )
+        elif image_width and abs(dx_norm) > self.strong_crossing_frac:
+            # strong_crossing: lateral motion dominates the intent of the
+            # trajectory, even if bbox is also growing. (v2: new branch
+            # above approaching to resolve diagonal-walker conflicts.)
+            label = (
+                "crossing_left_to_right" if dx_norm > 0
+                else "crossing_right_to_left"
+            )
+            evidence_parts.append(
+                f"dx={dx_total:.1f}px ({dx_norm*100:.1f}% of width) "
+                f"exceeds strong-crossing threshold of "
+                f"{self.strong_crossing_frac*100:.0f}%; lateral motion "
+                f"dominates depth signal (bbox_growth={growth_ratio:.2f})"
+            )
         elif (approach_score >= self.approach_threshold
               and growth_ratio > self.growth_threshold):
             label = "approaching"
@@ -428,12 +484,6 @@ class HazardClassifier:
             evidence_parts.append(
                 f"dx={dx_total:.1f}px ({dx_norm*100:.1f}% of width) "
                 f"with bbox_growth={growth_ratio:.2f} below threshold"
-            )
-        elif growth_ratio < self.shrink_threshold:
-            label = "moving_away"
-            evidence_parts.append(
-                f"bbox shrank: growth_ratio={growth_ratio:.2f} below "
-                f"{self.shrink_threshold:.2f}"
             )
         else:
             label = "uncertain"

@@ -1,0 +1,117 @@
+{
+  "video_id": "IMG_4973",
+  "num_labeled_tracks": 6,
+  "num_predicted_tracks": 5,
+  "num_evaluated_tracks": 5,
+  "overall_accuracy": 0.4,
+  "per_class_accuracy": {
+    "approaching": 0.0,
+    "crossing_left_to_right": 0.0,
+    "crossing_right_to_left": 0.0,
+    "moving_away": 0.3333333333333333,
+    "static": 0.0,
+    "uncertain": 1.0
+  },
+  "per_class_metrics": {
+    "approaching": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 1
+    },
+    "crossing_left_to_right": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 0
+    },
+    "crossing_right_to_left": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 0
+    },
+    "moving_away": {
+      "precision": 0.5,
+      "recall": 0.3333333333333333,
+      "f1": 0.4,
+      "support": 3
+    },
+    "static": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 0
+    },
+    "uncertain": {
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6666666666666666,
+      "support": 1
+    }
+  },
+  "approaching_precision": 0.0,
+  "approaching_recall": 0.0,
+  "approaching_f1": 0.0,
+  "macro_f1": 0.17777777777777778,
+  "macro_f1_sklearn": null,
+  "confusion_matrix": {
+    "approaching": {
+      "approaching": 0,
+      "crossing_left_to_right": 0,
+      "crossing_right_to_left": 0,
+      "moving_away": 1,
+      "static": 0,
+      "uncertain": 0
+    },
+    "crossing_left_to_right": {
+      "approaching": 0,
+      "crossing_left_to_right": 0,
+      "crossing_right_to_left": 0,
+      "moving_away": 0,
+      "static": 0,
+      "uncertain": 0
+    },
+    "crossing_right_to_left": {
+      "approaching": 0,
+      "crossing_left_to_right": 0,
+      "crossing_right_to_left": 0,
+      "moving_away": 0,
+      "static": 0,
+      "uncertain": 0
+    },
+    "moving_away": {
+      "approaching": 1,
+      "crossing_left_to_right": 0,
+      "crossing_right_to_left": 0,
+      "moving_away": 1,
+      "static": 0,
+      "uncertain": 1
+    },
+    "static": {
+      "approaching": 0,
+      "crossing_left_to_right": 0,
+      "crossing_right_to_left": 0,
+      "moving_away": 0,
+      "static": 0,
+      "uncertain": 0
+    },
+    "uncertain": {
+      "approaching": 0,
+      "crossing_left_to_right": 0,
+      "crossing_right_to_left": 0,
+      "moving_away": 0,
+      "static": 0,
+      "uncertain": 1
+    }
+  },
+  "confusion_matrix_orientation": "rows=true_label, cols=predicted_label",
+  "labels": [
+    "approaching",
+    "crossing_left_to_right",
+    "crossing_right_to_left",
+    "moving_away",
+    "static",
+    "uncertain"
+  ]
+}

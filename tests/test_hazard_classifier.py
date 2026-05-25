@@ -367,3 +367,180 @@ def test_uncertain_reason_column_present_in_classify_all():
     out = clf.classify_all(df, image_width=IMG_W, image_height=IMG_H)
     assert "uncertain_reason" in out.columns
     assert out["uncertain_reason"].iloc[0] == "short_track"
+
+
+# ---------------------------------------------------------------------------
+# v2 rule-cascade regression tests
+#
+# The cascade was reorganized after labeling 61 tracks across 11 real-world
+# videos surfaced two systematic failure modes (priority-order conflicts):
+#
+#   (A) Strong lateral motion + bbox growth was labeled `approaching`
+#       because the approach rule fired first in v1. Example tracks:
+#       IMG_4978/person_1 (g=+1.72, |dx_norm|=0.68 -> true: crossing_R2L)
+#       IMG_4981/person_3 (g=+1.92, |dx_norm|=0.80 -> true: crossing_R2L)
+#
+#   (B) Bbox shrinking + lateral motion was labeled `crossing` because
+#       crossing fired before moving_away in v1. Examples:
+#       IMG_4980/person_1 (g=-0.24, |dx|=0.15 -> true: moving_away)
+#       IMG_4980/person_2 (g=-0.71, |dx|=0.54 -> true: moving_away)
+#       IMG_4981/person_4 (g=-0.47, |dx|=0.15 -> true: moving_away)
+#
+# v2: moving_away is checked before crossing; strong_crossing fires
+# before approaching when |dx_norm| > strong_crossing_threshold (0.50,
+# the midpoint of an empirically observed gap between true-approaching
+# tracks max |dx_norm|=0.43 and true-crossing tracks min |dx_norm|=0.68).
+# ---------------------------------------------------------------------------
+
+
+def test_v2_strong_lateral_overrides_approaching_to_crossing():
+    """IMG_4978/person_1 regression: g=+1.72 + |dx_norm|=0.68 -> crossing_R2L."""
+    clf = HazardClassifier(CONFIG)
+    row = _feature_row(
+        track_id="person_1",
+        class_name="person",
+        # ~68% of width=960 leftward
+        start_cx=820.0, end_cx=170.0,
+        dx_total=-650.0, dy_total=0.0,
+        # bbox grew ~2.7x (g=+1.72)
+        start_area=66000.0, end_area=180000.0,
+        bbox_growth_ratio=1.72,
+        avg_flow_mag=14.0, avg_frame_diff_overlap=0.47,
+        total_displacement_norm=0.33,
+    )
+    out = clf.classify_track(row, image_width=IMG_W, image_height=IMG_H)
+    assert out["hazard_label"] == "crossing_right_to_left"
+    assert "strong-crossing threshold" in out["evidence"]
+
+
+def test_v2_strong_positive_lateral_overrides_approaching():
+    """IMG_4981/person_3 regression: g=+1.92 + dx_norm=+0.80 -> crossing_L2R.
+    (Sign-mirrored from IMG_4981/person_3, which was negative dx.)"""
+    clf = HazardClassifier(CONFIG)
+    row = _feature_row(
+        track_id="person_3",
+        class_name="person",
+        start_cx=100.0, end_cx=870.0,
+        dx_total=770.0, dy_total=0.0,
+        start_area=10000.0, end_area=29000.0,
+        bbox_growth_ratio=1.92,
+        avg_flow_mag=14.0, avg_frame_diff_overlap=0.4,
+        total_displacement_norm=0.4,
+    )
+    out = clf.classify_track(row, image_width=IMG_W, image_height=IMG_H)
+    assert out["hazard_label"] == "crossing_left_to_right"
+
+
+def test_v2_shrinking_bbox_with_lateral_motion_is_moving_away():
+    """IMG_4980/person_2 regression: g=-0.71 + |dx_norm|=0.54 -> moving_away.
+
+    v1 would have called this crossing because crossing was checked
+    before moving_away in the cascade."""
+    clf = HazardClassifier(CONFIG)
+    row = _feature_row(
+        track_id="person_2",
+        class_name="person",
+        # large leftward lateral motion (54% of width)
+        start_cx=910.0, end_cx=390.0,
+        dx_total=-520.0, dy_total=0.0,
+        # but bbox SHRANK strongly (-71%)
+        start_area=55000.0, end_area=16000.0,
+        bbox_growth_ratio=-0.71,
+        avg_flow_mag=6.0, avg_frame_diff_overlap=0.25,
+        total_displacement_norm=0.4,
+    )
+    out = clf.classify_track(row, image_width=IMG_W, image_height=IMG_H)
+    assert out["hazard_label"] == "moving_away"
+    # Evidence should explicitly call out that lateral motion was present
+    # but was overridden by the shrinkage signal -- otherwise reviewers
+    # won't know what tipped the decision.
+    assert "lateral motion" in out["evidence"].lower()
+
+
+def test_v2_shrinking_bbox_with_mild_lateral_is_moving_away():
+    """IMG_4980/person_1 + IMG_4981/person_4 regression:
+    moderate shrinkage + mild lateral (just over the crossing threshold)
+    should still be moving_away, not crossing."""
+    clf = HazardClassifier(CONFIG)
+    row = _feature_row(
+        track_id="person_1",
+        class_name="person",
+        # 15% lateral - over crossing_frac=0.08 but under strong=0.50
+        start_cx=430.0, end_cx=575.0,
+        dx_total=145.0, dy_total=20.0,
+        # moderate shrinkage (g=-0.24)
+        start_area=166000.0, end_area=126000.0,
+        bbox_growth_ratio=-0.24,
+        avg_flow_mag=4.0, avg_frame_diff_overlap=0.2,
+        total_displacement_norm=0.2,
+    )
+    out = clf.classify_track(row, image_width=IMG_W, image_height=IMG_H)
+    assert out["hazard_label"] == "moving_away"
+
+
+def test_v2_approaching_with_modest_lateral_still_approaching():
+    """Regression: an approaching pedestrian whose dx is in the 0.20-0.43
+    "gray zone" must still be classified as approaching. This is the
+    range where an over-eager strong_crossing threshold (e.g. 0.20) would
+    incorrectly flip 8 currently-correct labels in the eval set."""
+    clf = HazardClassifier(CONFIG)
+    row = _feature_row(
+        track_id="bicycle_1",
+        class_name="bicycle",
+        # 31% of width - in the gray zone
+        start_cx=290.0, end_cx=580.0,
+        dx_total=290.0, dy_total=-50.0,
+        # strong bbox growth (g=+21.0)
+        start_area=2000.0, end_area=44000.0,
+        bbox_growth_ratio=21.0,
+        avg_flow_mag=14.5, avg_frame_diff_overlap=0.45,
+        total_displacement_norm=0.35,
+    )
+    out = clf.classify_track(row, image_width=IMG_W, image_height=IMG_H)
+    assert out["hazard_label"] == "approaching"
+
+
+def test_v2_strong_crossing_threshold_is_configurable():
+    """The new threshold can be raised to 999 to disable strong_crossing
+    entirely (useful for ablation studies and to revert to v1 behavior
+    when combined with the original cascade order)."""
+    cfg = {**CONFIG, "hazard": {
+        **CONFIG["hazard"],
+        "strong_crossing_threshold_frac_width": 999.0,  # effectively off
+    }}
+    clf = HazardClassifier(cfg)
+    # Same inputs as test_v2_strong_lateral_overrides_approaching_to_crossing
+    row = _feature_row(
+        track_id="person_1",
+        start_cx=820.0, end_cx=170.0,
+        dx_total=-650.0,
+        start_area=66000.0, end_area=180000.0,
+        bbox_growth_ratio=1.72,
+        avg_flow_mag=14.0, avg_frame_diff_overlap=0.47,
+        total_displacement_norm=0.33,
+    )
+    out = clf.classify_track(row, image_width=IMG_W, image_height=IMG_H)
+    # With strong_crossing disabled, approach rule wins again (v1
+    # behavior) because g=+1.72 > growth_threshold and approach_score
+    # is high.
+    assert out["hazard_label"] == "approaching"
+
+
+def test_v2_evidence_mentions_strong_crossing_threshold():
+    """The evidence string must explain *which* rule fired so that the
+    decision can be audited from the CSV without re-running the
+    classifier."""
+    clf = HazardClassifier(CONFIG)
+    row = _feature_row(
+        track_id="person_x",
+        start_cx=820.0, end_cx=170.0,
+        dx_total=-650.0,
+        start_area=66000.0, end_area=180000.0,
+        bbox_growth_ratio=1.72,
+        avg_flow_mag=14.0, avg_frame_diff_overlap=0.47,
+        total_displacement_norm=0.33,
+    )
+    out = clf.classify_track(row, image_width=IMG_W, image_height=IMG_H)
+    ev = out["evidence"].lower()
+    assert "strong-crossing" in ev or "exceeds strong-crossing" in ev
+    assert "50%" in ev  # the threshold percent
