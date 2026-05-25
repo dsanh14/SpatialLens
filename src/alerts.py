@@ -39,6 +39,24 @@ def _side_from_cx(start_cx: float, image_width: float) -> str:
     return "center"
 
 
+UNCERTAIN_ALERT_BY_REASON = {
+    "short_track":
+        "{obj} detected briefly; not enough frames to judge motion.",
+    "near_approaching":
+        "{obj} possibly approaching, but the signal is weak.",
+    "near_crossing_left_to_right":
+        "{obj} possibly crossing left-to-right; signal is weak.",
+    "near_crossing_right_to_left":
+        "{obj} possibly crossing right-to-left; signal is weak.",
+    "near_moving_away":
+        "{obj} may be moving away, but the signal is weak.",
+    "conflicting_cues":
+        "{obj} is moving but direction is ambiguous.",
+    "low_signal":
+        "{obj} motion detected but too weak to classify.",
+}
+
+
 def generate_alert_for_track(row: pd.Series) -> str:
     """Build a short assistive alert string for a single hazard row."""
     label = str(row.get("hazard_label", "uncertain"))
@@ -61,6 +79,11 @@ def generate_alert_for_track(row: pd.Series) -> str:
         return f"{obj} moving away."
     if label == "static":
         return f"Static {obj.lower()} detected; no immediate motion hazard."
+    # Uncertain — pick the reason-specific phrasing if one is available.
+    reason = str(row.get("uncertain_reason", "")).strip()
+    template = UNCERTAIN_ALERT_BY_REASON.get(reason)
+    if template:
+        return template.format(obj=obj)
     return f"{obj} motion uncertain."
 
 
@@ -142,6 +165,9 @@ def generate_alerts(
             "hazard_label": str(row.get("hazard_label", "uncertain")),
             "alert": generate_alert_for_track(row),
         }
+        reason = str(row.get("uncertain_reason", "")).strip()
+        if reason:
+            rec["uncertain_reason"] = reason
         if include_conf:
             rec["confidence"] = str(row.get("confidence", "low"))
         alerts.append(rec)

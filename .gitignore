@@ -95,3 +95,6 @@ data/labels/*_template.csv
 
 # YOLO weights (downloaded at runtime). Keep out of git.
 *.pt
+
+# Ultralytics global settings dir, written into the project root on first run.
+Ultralytics/

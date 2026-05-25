@@ -29,6 +29,9 @@ WEEK3_DEFAULTS: Dict[str, Any] = {
         "flow_threshold": 1.0,
         "frame_diff_overlap_threshold": 0.08,
         "center_motion_threshold_frac": 0.05,
+        "min_track_frames": 3,
+        "near_miss_approach_margin": 0.25,
+        "near_miss_crossing_fraction": 0.5,
         "use_depth_if_available": False,
     },
     "evaluation": {

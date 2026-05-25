@@ -60,6 +60,22 @@ hazard:
   flow_threshold: 1.0
   frame_diff_overlap_threshold: 0.08
   center_motion_threshold_frac: 0.05
+  # Tracks with fewer detected positions than this are auto-marked
+  # uncertain (reason="short_track") because trajectory- and growth-based
+  # cues can't be computed reliably from 1-2 detections. Raise it for
+  # high-fps cameras, lower it for very short clips.
+  min_track_frames: 3
+  # When 'uncertain' is assigned, the classifier picks the most specific
+  # near-miss reason from this set:
+  #   short_track | near_approaching | near_crossing_left_to_right
+  #   near_crossing_right_to_left | near_moving_away | conflicting_cues
+  #   low_signal
+  # The chosen reason is stored as the 'uncertain_reason' column and is
+  # surfaced both in the 'evidence' string and the assistive alert text.
+  near_miss_approach_margin: 0.25  # how close approach_score must be to
+                                   # threshold for 'near_approaching'
+  near_miss_crossing_fraction: 0.5  # |dx_norm| must be > this * crossing_frac
+                                    # for 'near_crossing_*'
   use_depth_if_available: false  # depth module not implemented; bbox growth is the
                                  # main proxy for "approaching". Leave false unless
                                  # a depth backend is added later.

@@ -27,8 +27,15 @@ Given a short campus walkway video, the pipeline:
    differencing overlap.
 4. **Classifies each track** as one of six hazard labels:
    `approaching`, `crossing_left_to_right`, `crossing_right_to_left`,
-   `moving_away`, `static`, `uncertain`.
-5. **Generates short assistive alerts** ("Scooter crossing left-to-right.").
+   `moving_away`, `static`, `uncertain`. When the label is `uncertain`,
+   the classifier also picks a sub-reason
+   (`short_track`, `near_approaching`, `near_crossing_left_to_right`,
+   `near_crossing_right_to_left`, `near_moving_away`, `conflicting_cues`,
+   `low_signal`) and writes it to the `uncertain_reason` column so the
+   final report can quantify *why* the model was unsure.
+5. **Generates short assistive alerts** ("Scooter crossing left-to-right.",
+   or for uncertain tracks, the reason-specific phrasing like
+   "Person detected briefly; not enough frames to judge motion.").
 6. **Evaluates** against a manually labeled CSV when one is provided.
 7. **Exports slide-ready assets** (annotated frames, plots, hazard video,
    alerts) into `outputs/slide_assets/{video_id}/`.
@@ -50,6 +57,23 @@ Given a short campus walkway video, the pipeline:
   center motion, frame-diff overlap, flow magnitude) with horizontal
   displacement and shrink/growth thresholds. Every decision carries an
   `evidence` string explaining why.
+- **Explicit `uncertain` sub-classification** — instead of a generic
+  "uncertain" bucket, the classifier picks the most specific near-miss
+  reason and exposes it as the `uncertain_reason` column:
+
+  | reason | meaning |
+  |---|---|
+  | `short_track` | fewer than `hazard.min_track_frames` detections — trajectory cues unreliable |
+  | `near_crossing_left_to_right` / `near_crossing_right_to_left` | horizontal displacement was in the band just below the crossing threshold |
+  | `near_moving_away` | bbox shrank but not past the shrink threshold |
+  | `near_approaching` | bbox grew and `approach_score` was inside the near-miss window of the threshold |
+  | `conflicting_cues` | track both grew and crossed; diagonal motion, neither cue dominates |
+  | `low_signal` | motion was detected but every directional cue was near zero |
+
+  This makes the "uncertain" rate honest and actionable in the report —
+  you can quantify e.g. "X% of uncertain tracks were caused by short
+  tracks; X% by diagonal motion."
+
 - **Evaluation** — overall accuracy, per-class accuracy, confusion matrix,
   per-class precision/recall/F1, macro F1, and a focus on
   `approaching` precision/recall/F1.

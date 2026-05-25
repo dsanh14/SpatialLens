@@ -98,6 +98,45 @@ def test_uncertain_alert():
     assert "uncertain" in msg.lower()
 
 
+def test_uncertain_alert_with_short_track_reason():
+    msg = generate_alert_for_track(_hazard_row(
+        hazard_label="uncertain", uncertain_reason="short_track",
+        class_name="skateboard",
+    ))
+    assert "Skateboard" in msg
+    assert "briefly" in msg or "not enough frames" in msg.lower()
+
+
+def test_uncertain_alert_with_near_approaching_reason():
+    msg = generate_alert_for_track(_hazard_row(
+        hazard_label="uncertain", uncertain_reason="near_approaching",
+        class_name="bicycle",
+    ))
+    assert msg == "Bicycle possibly approaching, but the signal is weak."
+
+
+def test_uncertain_alert_with_conflicting_cues_reason():
+    msg = generate_alert_for_track(_hazard_row(
+        hazard_label="uncertain", uncertain_reason="conflicting_cues",
+        class_name="person",
+    ))
+    assert "ambiguous" in msg.lower()
+
+
+def test_uncertain_alert_json_includes_reason():
+    df = pd.DataFrame([_hazard_row(
+        hazard_label="uncertain", uncertain_reason="short_track"
+    )])
+    alerts = generate_alerts(df, config={"alerts": {"include_confidence": True}})
+    assert alerts[0]["uncertain_reason"] == "short_track"
+
+
+def test_non_uncertain_alert_json_omits_reason():
+    df = pd.DataFrame([_hazard_row(hazard_label="approaching")])
+    alerts = generate_alerts(df, config={"alerts": {"include_confidence": True}})
+    assert "uncertain_reason" not in alerts[0]
+
+
 def test_generate_alerts_returns_one_per_row():
     df = pd.DataFrame([
         _hazard_row(track_id="bicycle_1", hazard_label="approaching"),
