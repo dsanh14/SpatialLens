@@ -146,10 +146,13 @@ def generate_mock_video(
     output_path = Path(output_path)
     ensure_dir(output_path.parent)
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
-    if not writer.isOpened():
-        raise RuntimeError(f"Could not open VideoWriter for: {output_path}")
+    # open_video_writer prefers H.264 (avc1) so the generated videos
+    # play in QuickTime / Cursor / Quick Look on macOS, falling back to
+    # mp4v on OpenCV builds without H.264 support.
+    from .utils import open_video_writer
+    writer, _fourcc = open_video_writer(
+        output_path, fps=fps, width=width, height=height,
+    )
     try:
         for i in range(num_frames):
             frame = _draw_frame(scenario, i, num_frames, width, height)

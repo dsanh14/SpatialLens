@@ -37,6 +37,46 @@ def color_for_class(class_name: str) -> Tuple[int, int, int]:
     return CLASS_COLORS_BGR.get(class_name, DEFAULT_COLOR_BGR)
 
 
+# Codec fallback chain for cv2.VideoWriter. We try H.264 first because
+# it's the only codec macOS QuickTime / Finder Quick Look / Cursor's
+# built-in video preview all decode reliably; the older "mp4v" (MPEG-4
+# Part 2) codec produces files that play in VLC but render as a solid
+# color in QuickTime on modern macOS. The four-character codes are
+# tried in order until VideoWriter.isOpened() returns True.
+_VIDEO_FOURCC_FALLBACK = ("avc1", "H264", "mp4v")
+
+
+def open_video_writer(
+    output_path: str | Path,
+    fps: int,
+    width: int,
+    height: int,
+) -> Tuple[cv2.VideoWriter, str]:
+    """Open a ``cv2.VideoWriter`` with H.264 preferred, MPEG-4 fallback.
+
+    Returns ``(writer, fourcc_used)``. Raises ``RuntimeError`` if no
+    codec in the fallback chain could be opened (extremely rare —
+    indicates a broken OpenCV install).
+    """
+    output_path = Path(output_path)
+    ensure_dir(output_path.parent)
+    last_err: str | None = None
+    for code in _VIDEO_FOURCC_FALLBACK:
+        fourcc = cv2.VideoWriter_fourcc(*code)
+        writer = cv2.VideoWriter(
+            str(output_path), fourcc, fps, (width, height),
+        )
+        if writer.isOpened():
+            return writer, code
+        writer.release()
+        last_err = code
+    raise RuntimeError(
+        f"cv2.VideoWriter could not be opened with any of "
+        f"{_VIDEO_FOURCC_FALLBACK} for path={output_path}. "
+        f"Last attempted fourcc={last_err!r}."
+    )
+
+
 def write_video_from_frames(
     frame_paths: Iterable[str | Path],
     output_video_path: str | Path,
@@ -56,11 +96,9 @@ def write_video_from_frames(
         raise RuntimeError(f"Could not read first frame: {frame_paths[0]}")
     height, width = first.shape[:2]
 
-    output_video_path = Path(output_video_path)
-    ensure_dir(output_video_path.parent)
-
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(str(output_video_path), fourcc, fps, (width, height))
+    writer, _fourcc = open_video_writer(
+        output_video_path, fps=fps, width=width, height=height,
+    )
     try:
         for fp in frame_paths:
             img = cv2.imread(str(fp))
