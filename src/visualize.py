@@ -207,6 +207,68 @@ def plot_approach_scores(
     return _save_fig(fig, output_path)
 
 
+def plot_uncertain_reasons(
+    hazards_df: pd.DataFrame,
+    output_path: str | Path,
+    title: str = "Why tracks were classified as 'uncertain'",
+) -> str:
+    """Horizontal bar chart of `uncertain_reason` counts.
+
+    Accepts either a single-video hazards dataframe or a concatenation
+    of several. Rows where ``hazard_label != 'uncertain'`` are ignored.
+    Returns the path of the saved figure (or a placeholder figure with
+    a "no uncertain tracks" title if there's nothing to plot).
+    """
+    fig, ax = plt.subplots(figsize=(8.5, 4.5))
+    if (
+        hazards_df is None or hazards_df.empty
+        or "hazard_label" not in hazards_df.columns
+    ):
+        ax.set_title(f"{title} — no data")
+        return _save_fig(fig, output_path)
+
+    unc = hazards_df[hazards_df["hazard_label"] == "uncertain"].copy()
+    if unc.empty or "uncertain_reason" not in unc.columns:
+        ax.set_title(f"{title} — no uncertain tracks")
+        return _save_fig(fig, output_path)
+
+    reasons = (
+        unc["uncertain_reason"].fillna("").replace("", "(unknown)").astype(str)
+        .value_counts().sort_values(ascending=True)
+    )
+    total = int(reasons.sum())
+
+    # Colour codes: dim red for short_track (data-quality issue),
+    # orange for near-miss reasons (signal-strength issue), grey for
+    # conflicting / low_signal (genuinely ambiguous).
+    palette = {
+        "short_track": "#888888",
+        "near_approaching": "#d62728",
+        "near_crossing_left_to_right": "#ff7f0e",
+        "near_crossing_right_to_left": "#ff7f0e",
+        "near_moving_away": "#9467bd",
+        "conflicting_cues": "#1f77b4",
+        "low_signal": "#2ca02c",
+    }
+    colors = [palette.get(r, "#cccccc") for r in reasons.index]
+
+    bars = ax.barh(reasons.index, reasons.values, color=colors,
+                   edgecolor="black", linewidth=0.5)
+    for bar, count in zip(bars, reasons.values):
+        pct = 100.0 * count / total if total else 0
+        ax.text(
+            bar.get_width() + max(reasons.max() * 0.01, 0.05),
+            bar.get_y() + bar.get_height() / 2,
+            f"{int(count)} ({pct:.0f}%)",
+            va="center", fontsize=9,
+        )
+    ax.set_xlabel("tracks")
+    ax.set_title(f"{title}  (n={total} uncertain tracks)")
+    ax.set_xlim(0, reasons.max() * 1.18)
+    ax.grid(axis="x", linestyle="--", alpha=0.3)
+    return _save_fig(fig, output_path)
+
+
 def plot_confusion_matrix(
     confusion_df: pd.DataFrame, output_path: str | Path,
     title: str = "Hazard confusion matrix (true vs predicted)",

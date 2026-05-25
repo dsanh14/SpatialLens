@@ -11,7 +11,10 @@ video:
 detection:
   backend: "yolo"  # options: yolo, mock
   model_name: "yolov8n.pt"
-  confidence_threshold: 0.25
+  # Raised from 0.25 to 0.35 on real campus footage: the lower value
+  # produced many low-confidence flicker detections that became 1-2
+  # frame tracks (the dominant cause of `uncertain/short_track`).
+  confidence_threshold: 0.35
   target_classes:
     - "person"
     - "bicycle"
@@ -21,10 +24,34 @@ detection:
   save_csv: true
 
 tracking:
+  # Which tracking algorithm to use:
+  #   "iou_centroid" (default) - the from-scratch per-class IoU + centroid
+  #                              matcher in src/tracking.py. This is the
+  #                              tracker the Week 2 report describes.
+  #   "bytetrack"              - opt-in baseline using `supervision.ByteTrack`
+  #                              (Kalman-filter-based, two-stage matching,
+  #                              lost-track buffer). Better at re-identifying
+  #                              after brief detection misses; drops detections
+  #                              that never get associated with a confirmed
+  #                              track instead of starting a fresh track.
+  #                              Requires the `supervision` pip dep.
+  backend: "iou_centroid"
   iou_threshold: 0.25
   centroid_distance_threshold_frac: 0.15
-  max_frame_gap: 2
+  # Raised from 2 to 4 so a track can survive brief detection misses
+  # (YOLO occasionally drops an object for one or two sampled frames
+  # before re-detecting it). Bigger values can cross-link unrelated
+  # tracks, so 4 is a conservative middle ground.
+  max_frame_gap: 4
   min_track_length: 2
+  # ByteTrack-specific hyperparameters (used only when backend == "bytetrack").
+  # Defaults match the supervision library defaults; tighten thresholds on
+  # cleaner footage if you want fewer false positive tracks.
+  bytetrack:
+    track_activation_threshold: 0.25
+    lost_track_buffer: 30
+    minimum_matching_threshold: 0.8
+    frame_rate: 30
 
 motion:
   static_threshold_frac_diagonal: 0.04
@@ -33,6 +60,28 @@ motion:
   flow_magnitude_threshold: 1.0
   frame_diff_threshold: 25
   morphology_kernel_size: 5
+  # Ego-motion compensation (Week 3 improvement).
+  # When true:
+  #   - Optical flow per-bbox stats subtract the per-frame median flow
+  #     (a robust estimate of camera translation) so they describe
+  #     object motion *relative to the background*, not absolute image
+  #     motion. Mostly fixes hand-held / walking footage.
+  #   - Frame differencing translation-aligns the previous frame to the
+  #     current frame using cv2.findTransformECC before computing the
+  #     diff, removing most of the false-positive motion mask area
+  #     caused by camera pan.
+  # Set to false to reproduce the un-compensated Week 1-2 behavior
+  # (useful for ablation comparisons in the report).
+  ego_motion_compensation: true
+  # ECC motion model used for frame-diff alignment. Optical-flow
+  # compensation always uses translation (it's a per-pixel subtraction
+  # of the median flow vector, so an affine global motion would not
+  # change the math). For frame-diff:
+  #   "translation" (default) - 2 params (tx, ty). Fast and stable.
+  #   "affine"               - 6 params; also handles rotation, scale,
+  #                            and shear. Use this on hand-held footage
+  #                            with sharp turns or rapid forward zoom.
+  ego_motion_model: "translation"
 
 outputs:
   save_annotated_frames: true

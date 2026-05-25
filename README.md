@@ -43,8 +43,16 @@ Given a short campus walkway video, the pipeline:
 ## Computer vision methods used
 
 - **Detection** — Ultralytics YOLO (`yolov8n.pt`, COCO).
-- **Tracking** — simple per-class IoU + centroid-distance matcher with
-  weighted scoring (`0.7 * IoU + 0.3 * (1 - normalized centroid distance)`).
+- **Tracking** — by default the from-scratch per-class IoU +
+  centroid-distance matcher with weighted scoring
+  (`0.7 * IoU + 0.3 * (1 - normalized centroid distance)`). For
+  comparison, a ByteTrack baseline (via the `supervision` library,
+  Kalman-filtered, two-stage matching, lost-track buffer) is wired in
+  as an opt-in backend selectable via `tracking.backend: "bytetrack"`
+  in `config.yaml`. The default backend is the from-scratch tracker
+  for pedagogical clarity; ByteTrack is useful for ablation
+  comparisons in the report ("our simple tracker drops 12% of tracks
+  to short_track; ByteTrack drops 4%", etc.).
 - **Centroid trajectory analysis** — `dx_total`, `dy_total`, normalized
   displacement.
 - **Bounding-box growth/shrinkage** — `bbox_growth_ratio = (end_area − start_area) / start_area`.
@@ -52,6 +60,31 @@ Given a short campus walkway video, the pipeline:
   inside each bbox.
 - **Frame differencing** — thresholded absolute difference + morphological
   open/close, then fraction of bbox area covered by the motion mask.
+- **Ego-motion compensation** — on hand-held / walking footage, the
+  whole frame pans every step and that pan contaminates both optical
+  flow (every static object reads "moving") and frame differencing
+  (every bbox lights up). The pipeline compensates for this in two
+  ways, both gated by `motion.ego_motion_compensation` (set `false` for
+  ablation):
+  1. **Optical flow** — for each frame pair we take the per-pixel
+     median of the dense flow field as a robust estimate of camera
+     translation (the median is dominated by the static-but-panning
+     background, since moving foreground objects cover only a small
+     fraction of the image), and subtract that global flow per pixel
+     before computing the per-bbox median dx/dy and mean magnitude.
+     The result is *object motion relative to the background*, not
+     absolute pixel motion. The per-frame estimate is also exposed as
+     `avg_global_flow_dx/dy/mag` on each track so the report can
+     quantify how much camera motion was compensated for.
+  2. **Frame differencing** — we use `cv2.findTransformECC` to align
+     the previous frame to the current frame before the absdiff. By
+     default this uses a translation-only motion model (2 parameters,
+     fast and stable). Setting `motion.ego_motion_model: "affine"`
+     switches to a 6-parameter affine model that also handles
+     rotation, scale (zoom), and shear — useful for hand-held footage
+     with sharp turns. Either way, this removes most of the
+     false-positive motion-mask area caused by the camera moving and
+     `frame_diff_overlap` measures genuine object motion.
 - **Rule-based hazard classification** — the main CV contribution of the
   project. Combines an `approach_score` (weighted blend of bbox growth,
   center motion, frame-diff overlap, flow magnitude) with horizontal
@@ -131,27 +164,50 @@ python scripts/run_week3_pipeline.py --all --config config.yaml
 
 Manual evaluation is optional but recommended for the final report.
 
-1. Generate a label template (per-video files **and** one combined file):
-   ```bash
-   python scripts/create_label_template.py --all --config config.yaml
-   ```
-   This produces `data/labels/{video_id}_hazard_label_template.csv` per
-   video and `data/labels/hazard_labels_template.csv` (combined).
+The fastest path:
 
-2. Open the combined template and fill in the `true_label` column with
-   one of:
-   ```
-   approaching | crossing_left_to_right | crossing_right_to_left
-   moving_away | static | uncertain
-   ```
+```bash
+python scripts/bootstrap_hazard_labels.py
+```
 
-3. Save it as `data/labels/hazard_labels.csv` (path is configurable via
-   `evaluation.label_file` in `config.yaml`).
+This walks every processed video and:
 
-4. Re-run Week 3 to get evaluation metrics:
-   ```bash
-   python scripts/run_week3_pipeline.py --all --config config.yaml
-   ```
+- Auto-fills `true_label` for any synthetic mock-scenario video
+  (`bike_approaching_left_*`, `scooter_crossing_left_to_right_*`,
+  `person_walking_away_*`, `static_nonhazard_*`) — the scenario name
+  encodes the ground truth, so no manual work is required for those.
+- For every real-video track, writes the model's prediction into the
+  `suggested_label` column **but leaves `true_label` blank** (auto-
+  filling real videos with the model's own prediction would make
+  every metric trivially perfect).
+- Generates `data/labels/REVIEW_QUEUE.md`: a per-video checklist of
+  every track that still needs a `true_label`, ordered by safety
+  priority (`approaching` first), with a deep link to the right demo
+  video and a one-line evidence summary.
+
+Re-running the script preserves any `true_label` values you've already
+entered (it merges by `(video_id, track_id)`); pass `--overwrite` to
+start over from scratch.
+
+Allowed values for `true_label`:
+
+```
+approaching | crossing_left_to_right | crossing_right_to_left
+moving_away | static | uncertain
+```
+
+Manual path (if you'd rather start from blank templates):
+
+```bash
+python scripts/create_label_template.py --all --config config.yaml
+# … fill in true_label, save as data/labels/hazard_labels.csv …
+```
+
+Then re-run Week 3 to get evaluation metrics:
+
+```bash
+python scripts/run_week3_pipeline.py --all --config config.yaml
+```
 
 Metrics land in `outputs/evaluation/`:
 - `<video_id>_evaluation_summary.json`
@@ -247,15 +303,23 @@ SpatialLens/
   some combination of `person` + `skateboard` / `motorcycle` / `bicycle`.
   The Week 3 classifier reasons on motion, not class, so this is partially
   mitigated.
-- **Camera motion** materially affects optical flow. Film with a stable
-  camera; if not, the `avg_flow_mag` cue becomes noisy and the classifier
-  leans more heavily on bbox growth.
+- **Camera motion** is handled by ego-motion compensation (see the
+  *Computer vision methods used* section). Translation is on by
+  default; rotation/zoom can be enabled via
+  `motion.ego_motion_model: "affine"` for hand-held footage with
+  sharp turns. A fast pan can still briefly outrun ECC's convergence
+  on low-texture frames, so for best results film at roughly walking
+  pace and aim the camera at textured surfaces (buildings, foliage)
+  rather than blank sky.
 - **Bbox-growth as a proxy for "approaching"** is an approximation. Without
   a depth backend (intentionally out of scope), a track far from the
   camera that grows because of perspective changes can be misread.
-- **Simple IoU + centroid tracker** can swap IDs when same-class objects
-  cross or overlap heavily. Switching to ByteTrack / SORT is left as
-  future work.
+- **Simple IoU + centroid tracker** can swap IDs when same-class
+  objects cross or overlap heavily. A ByteTrack baseline is wired in
+  as an opt-in `tracking.backend: "bytetrack"` config — it survives
+  brief detection misses much better but, since it's a library call,
+  the default keeps the from-scratch tracker for the report's
+  pedagogical story.
 - **No safety deployment**. This is a 3-week prototype on controlled,
   low-traffic clips — not a production assistive technology. Real-world
   use would require careful HCI work, latency budgets, redundancy, and

@@ -87,6 +87,8 @@ def export_slide_assets(video_id: str, config: dict) -> Dict[str, str]:
          "motion_features_plot"),
         (f"{video_id}_confusion_matrix.png", "10_confusion_matrix.png",
          "confusion_matrix_plot"),
+        (f"{video_id}_uncertain_reasons.png", "13_uncertain_reasons.png",
+         "uncertain_reasons_plot"),
     ):
         path = _copy(PLOTS_DIR / src_name, out_dir / dst_name)
         if path:
@@ -146,7 +148,9 @@ def _build_readme_text(video_id: str, written: Dict[str, str]) -> str:
         f"  Hazard timeline: {present('hazard_timeline_plot')}\n"
         f"  Approach scores: {present('approach_scores_plot')}\n"
         f"  Confusion matrix (if labels exist): "
-        f"{present('confusion_matrix_plot')}\n\n"
+        f"{present('confusion_matrix_plot')}\n"
+        f"  Uncertain reasons breakdown:        "
+        f"{present('uncertain_reasons_plot')}\n\n"
         "Demo slide:\n"
         f"  Final hazard video: {present('hazard_video')}\n"
         f"  Or tracking video:  {present('tracking_video')}\n"

@@ -1,11 +1,16 @@
-"""Simple IoU + centroid tracker for Week 2.
+"""Simple IoU + centroid tracker for Week 2 (with an optional ByteTrack backend).
 
-The tracker is per-class (a person detection cannot inherit a bicycle's
-track_id), and matches each new detection to an existing active track
-using a weighted combination of IoU and inverse normalized centroid
-distance. It is intentionally light — not ByteTrack/SORT — to keep the
-Week 1-2 scope tight. The Week 3 hazard classifier will consume these
-track IDs.
+The default tracker is per-class (a person detection cannot inherit a
+bicycle's track_id), and matches each new detection to an existing
+active track using a weighted combination of IoU and inverse
+normalized centroid distance. It is intentionally light — not
+ByteTrack/SORT — so the project's Weeks 1-2 deliverable shows a
+from-scratch tracker that the Week 3 hazard classifier consumes.
+
+For ablation comparisons, the public entry point :func:`assign_tracks`
+dispatches to :mod:`src.tracking_bytetrack` when
+``tracking.backend == "bytetrack"`` in the config. Both backends emit
+the same DataFrame schema, so all downstream stages are unchanged.
 """
 
 from __future__ import annotations
@@ -97,18 +102,25 @@ def assign_tracks(
     output_dir: Optional[str | Path] = None,
     video_id: Optional[str] = None,
 ) -> pd.DataFrame:
-    """Assign track IDs to detections using IoU + centroid matching.
+    """Assign track IDs to detections.
+
+    Dispatches to the IoU+centroid tracker (default) or the ByteTrack
+    backend based on ``config["tracking"]["backend"]`` (one of
+    ``"iou_centroid"`` or ``"bytetrack"``; defaults to
+    ``"iou_centroid"``). Both backends emit the same DataFrame schema.
 
     Parameters
     ----------
     detections_df:
         Detection rows from :func:`src.detect_objects.run_detection`.
     image_width, image_height:
-        Frame dimensions, used to normalize the centroid distance.
+        Frame dimensions, used to normalize the centroid distance
+        (IoU+centroid backend only).
     config:
         Parsed config dict; uses ``tracking.iou_threshold``,
         ``tracking.centroid_distance_threshold_frac``, and
-        ``tracking.max_frame_gap``.
+        ``tracking.max_frame_gap`` for the default backend, and
+        ``tracking.bytetrack.*`` for the ByteTrack backend.
     output_dir, video_id:
         If both are provided, the result is also written to
         ``{output_dir}/{video_id}_tracks.csv``.
@@ -120,6 +132,23 @@ def assign_tracks(
         ``matched_score``.
     """
     cfg = config["tracking"]
+    backend = str(cfg.get("backend", "iou_centroid")).lower()
+    if backend == "bytetrack":
+        # Lazy import keeps `supervision` an optional dependency for
+        # users who only ever run the default backend.
+        from .tracking_bytetrack import assign_tracks_bytetrack
+        return assign_tracks_bytetrack(
+            detections_df=detections_df,
+            image_width=image_width,
+            image_height=image_height,
+            config=config,
+            output_dir=output_dir,
+            video_id=video_id,
+        )
+    if backend != "iou_centroid":
+        print(f"[tracking][warn] unknown backend={backend!r}; "
+              f"falling back to 'iou_centroid'.")
+
     iou_thresh = float(cfg["iou_threshold"])
     centroid_frac = float(cfg["centroid_distance_threshold_frac"])
     max_gap = int(cfg["max_frame_gap"])

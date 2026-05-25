@@ -44,6 +44,7 @@ from src.visualize import (  # noqa: E402
     plot_approach_scores,
     plot_confusion_matrix,
     plot_hazard_timeline,
+    plot_uncertain_reasons,
 )
 
 FRAMES_DIR = Path("data/frames")
@@ -128,6 +129,10 @@ def run_week3_for_video_id(video_id: str, cfg: dict) -> Dict[str, str]:
         )
         plot_paths["approach_scores_plot"] = plot_approach_scores(
             hazards_df, PLOTS_DIR / f"{video_id}_approach_scores.png"
+        )
+        plot_paths["uncertain_reasons_plot"] = plot_uncertain_reasons(
+            hazards_df, PLOTS_DIR / f"{video_id}_uncertain_reasons.png",
+            title=f"Why tracks were 'uncertain' — {video_id}",
         )
 
     hazard_video_path = ""
@@ -240,20 +245,32 @@ def main() -> None:
         except FileNotFoundError as e:
             print(f"[week3][skip] {e}")
 
-    # Aggregate evaluation across every processed video, if labels exist.
     if args.all and all_outputs:
-        label_path = Path(cfg["evaluation"].get(
-            "label_file", "data/labels/hazard_labels.csv"))
-        labels_df = load_labels(label_path)
-        if not labels_df.empty:
-            hazards = []
-            for o in all_outputs:
-                path = Path(o["hazards_csv"])
-                if path.exists():
-                    hazards.append(pd.read_csv(path))
-            if hazards:
-                preds = pd.concat(hazards, ignore_index=True)
-                agg = evaluate_hazards(preds, labels_df, video_id=None)
+        # Concatenate per-video hazard predictions once and reuse for
+        # the aggregate uncertain-reasons plot AND (if labels exist)
+        # the aggregate evaluation.
+        hazards = []
+        for o in all_outputs:
+            path = Path(o["hazards_csv"])
+            if path.exists():
+                hazards.append(pd.read_csv(path))
+        if hazards:
+            all_preds = pd.concat(hazards, ignore_index=True)
+
+            if cfg["outputs"].get("save_plots", True):
+                agg_plot = plot_uncertain_reasons(
+                    all_preds,
+                    PLOTS_DIR / "all_videos_uncertain_reasons.png",
+                    title="Why tracks were 'uncertain' — all videos",
+                )
+                print(f"[week3] aggregate uncertain-reasons plot -> "
+                      f"{agg_plot}")
+
+            label_path = Path(cfg["evaluation"].get(
+                "label_file", "data/labels/hazard_labels.csv"))
+            labels_df = load_labels(label_path)
+            if not labels_df.empty:
+                agg = evaluate_hazards(all_preds, labels_df, video_id=None)
                 save_evaluation(
                     agg,
                     Path(cfg["evaluation"].get(

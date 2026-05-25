@@ -3,6 +3,13 @@
 Used both as a sanity check / visualization and as a per-bbox feature
 (``frame_diff_overlap``: fraction of the bbox area that overlaps the
 binary motion mask).
+
+When ``motion.ego_motion_compensation`` is enabled (default True), the
+previous frame is translation-aligned to the current frame using
+``cv2.findTransformECC`` *before* the absolute difference is computed.
+This removes most of the false-positive motion mask area caused by the
+camera panning, so the per-bbox overlap measures genuine object motion
+rather than image-plane shift.
 """
 
 from __future__ import annotations
@@ -17,17 +24,106 @@ from tqdm import tqdm
 
 from .utils import ensure_dir
 
+# ECC alignment hyperparameters. 30 iterations is plenty for pure
+# translation on small (< 50 px) global shifts; we cap it to keep total
+# runtime under a few seconds even on long videos. Affine convergence
+# needs a few more iterations because 6 parameters take longer than 2.
+_ECC_ITERS_TRANSLATION = 30
+_ECC_ITERS_AFFINE = 50
+_ECC_EPS = 1e-4
+
+_ECC_MOTION_TYPES = {
+    "translation": cv2.MOTION_TRANSLATION,
+    "affine": cv2.MOTION_AFFINE,
+}
+
+
+def estimate_ego_motion_ecc(
+    prev_gray: np.ndarray, curr_gray: np.ndarray,
+    *,
+    motion_model: str = "translation",
+) -> np.ndarray:
+    """Estimate the ego-motion warp from ``prev`` to ``curr`` via ECC.
+
+    Returns a 2x3 warp matrix ``W`` such that
+    ``cv2.warpAffine(prev, W, (w, h)) ~= curr``.
+
+    ``motion_model="translation"`` is fast and stable but only handles
+    pure pan (2 parameters, ``tx`` and ``ty``).
+    ``motion_model="affine"`` is a 6-parameter fit that additionally
+    captures rotation, scale (zoom), and shear — useful for hand-held
+    footage with sharp turns or rapid forward motion. It's slower and a
+    bit less robust on low-texture frames, so we fall back to identity
+    if the solver fails to converge.
+
+    Note on argument order: empirically,
+    ``findTransformECC(template, input, warp)`` returns a warp such that
+    ``warpAffine(template, warp) ~= input``. To get a warp that maps
+    ``prev`` onto ``curr`` we therefore pass ``template=prev``,
+    ``input=curr`` — not the reverse.
+    """
+    mt = _ECC_MOTION_TYPES.get(motion_model.lower(), cv2.MOTION_TRANSLATION)
+    iters = (
+        _ECC_ITERS_AFFINE if mt == cv2.MOTION_AFFINE else _ECC_ITERS_TRANSLATION
+    )
+    warp = np.eye(2, 3, dtype=np.float32)
+    criteria = (cv2.TERM_CRITERIA_COUNT + cv2.TERM_CRITERIA_EPS,
+                iters, _ECC_EPS)
+    try:
+        _cc, warp = cv2.findTransformECC(
+            prev_gray, curr_gray, warp,
+            motionType=mt,
+            criteria=criteria,
+        )
+    except cv2.error:
+        return np.eye(2, 3, dtype=np.float32)
+    return warp
+
+
+def estimate_translation_ecc(
+    prev_gray: np.ndarray, curr_gray: np.ndarray,
+) -> tuple[float, float]:
+    """Backwards-compatible translation-only ECC wrapper.
+
+    Kept for tests and external callers that only need the pure pan
+    estimate. New code should call :func:`estimate_ego_motion_ecc`,
+    which can optionally return an affine warp.
+    """
+    warp = estimate_ego_motion_ecc(
+        prev_gray, curr_gray, motion_model="translation",
+    )
+    return float(warp[0, 2]), float(warp[1, 2])
+
+
+def _warp_is_significant(warp: np.ndarray) -> bool:
+    """Whether an ECC warp is meaningfully different from identity.
+
+    We skip the warp step (and the corresponding interpolation cost)
+    when the estimated motion is sub-pixel and the linear part is
+    essentially the identity, since the resulting `prev` would be
+    pixel-identical to the unwarped one.
+    """
+    tx, ty = warp[0, 2], warp[1, 2]
+    a, b = warp[0, 0], warp[0, 1]
+    c, d = warp[1, 0], warp[1, 1]
+    linear_dev = abs(a - 1.0) + abs(d - 1.0) + abs(b) + abs(c)
+    return abs(tx) > 0.5 or abs(ty) > 0.5 or linear_dev > 1e-3
+
 
 def compute_frame_difference(
     prev_frame_path: str | Path,
     curr_frame_path: str | Path,
     threshold: int = 25,
     kernel_size: int = 5,
+    ego_motion_compensation: bool = True,
+    ego_motion_model: str = "translation",
 ) -> np.ndarray:
     """Return a binary motion mask between two consecutive frames.
 
-    Steps: grayscale -> ``cv2.absdiff`` -> threshold -> morphological
-    open + close to clean speckle and fill small holes.
+    Steps: grayscale -> (optional) ECC alignment of the previous frame
+    onto the current frame using the requested motion model
+    (``"translation"`` or ``"affine"``) -> ``cv2.absdiff`` -> threshold
+    -> morphological open + close.
     """
     prev = cv2.imread(str(prev_frame_path), cv2.IMREAD_GRAYSCALE)
     curr = cv2.imread(str(curr_frame_path), cv2.IMREAD_GRAYSCALE)
@@ -38,6 +134,18 @@ def compute_frame_difference(
         )
     if prev.shape != curr.shape:
         prev = cv2.resize(prev, (curr.shape[1], curr.shape[0]))
+
+    if ego_motion_compensation:
+        warp = estimate_ego_motion_ecc(
+            prev, curr, motion_model=ego_motion_model,
+        )
+        if _warp_is_significant(warp):
+            h, w = curr.shape[:2]
+            prev = cv2.warpAffine(
+                prev, warp, (w, h),
+                flags=cv2.INTER_LINEAR,
+                borderMode=cv2.BORDER_REPLICATE,
+            )
 
     diff = cv2.absdiff(prev, curr)
     _, mask = cv2.threshold(diff, int(threshold), 255, cv2.THRESH_BINARY)
@@ -69,6 +177,12 @@ def compute_object_motion_overlap(
     motion_cfg = config["motion"]
     threshold = int(motion_cfg["frame_diff_threshold"])
     kernel_size = int(motion_cfg["morphology_kernel_size"])
+    ego_comp = bool(motion_cfg.get("ego_motion_compensation", True))
+    ego_model = str(motion_cfg.get("ego_motion_model", "translation")).lower()
+    if ego_model not in _ECC_MOTION_TYPES:
+        print(f"[frame_diff][warn] unknown ego_motion_model={ego_model!r}; "
+              f"falling back to 'translation'.")
+        ego_model = "translation"
 
     df = detections_df.copy()
     if df.empty:
@@ -89,6 +203,8 @@ def compute_object_motion_overlap(
         mask = compute_frame_difference(
             frame_paths[t - 1], frame_paths[t],
             threshold=threshold, kernel_size=kernel_size,
+            ego_motion_compensation=ego_comp,
+            ego_motion_model=ego_model,
         )
         masks[t] = mask
         if save_dir is not None:

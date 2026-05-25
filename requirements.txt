@@ -7,3 +7,8 @@ pyyaml
 tqdm
 Pillow
 pytest
+# Optional: enables the `tracking.backend: bytetrack` config option in
+# src/tracking_bytetrack.py. Pinned <0.30 because supervision.ByteTrack
+# was deprecated in 0.28 and is scheduled for removal in 0.30; pin
+# again once they ship a replacement API.
+supervision<0.30

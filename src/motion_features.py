@@ -39,6 +39,9 @@ TRACK_FEATURE_COLUMNS = [
     "avg_flow_dx",
     "avg_flow_dy",
     "avg_flow_mag",
+    "avg_global_flow_dx",
+    "avg_global_flow_dy",
+    "avg_global_flow_mag",
     "avg_frame_diff_overlap",
     "preliminary_motion_label",
     "preliminary_direction_label",
@@ -116,7 +119,11 @@ def compute_track_motion_features(
         return empty
 
     df = tracks_df.copy()
-    for col in ("flow_dx", "flow_dy", "flow_mag", "frame_diff_overlap"):
+    for col in (
+        "flow_dx", "flow_dy", "flow_mag",
+        "global_flow_dx", "global_flow_dy",
+        "frame_diff_overlap",
+    ):
         if col not in df.columns:
             df[col] = 0.0
 
@@ -139,6 +146,9 @@ def compute_track_motion_features(
         avg_flow_dx = float(g["flow_dx"].mean()) if len(g) else 0.0
         avg_flow_dy = float(g["flow_dy"].mean()) if len(g) else 0.0
         avg_flow_mag = float(g["flow_mag"].mean()) if len(g) else 0.0
+        avg_g_dx = float(g["global_flow_dx"].mean()) if len(g) else 0.0
+        avg_g_dy = float(g["global_flow_dy"].mean()) if len(g) else 0.0
+        avg_g_mag = math.hypot(avg_g_dx, avg_g_dy)
         avg_fd_overlap = float(g["frame_diff_overlap"].mean()) if len(g) else 0.0
 
         motion_label = _label_motion(
@@ -169,6 +179,9 @@ def compute_track_motion_features(
             "avg_flow_dx": avg_flow_dx,
             "avg_flow_dy": avg_flow_dy,
             "avg_flow_mag": avg_flow_mag,
+            "avg_global_flow_dx": avg_g_dx,
+            "avg_global_flow_dy": avg_g_dy,
+            "avg_global_flow_mag": avg_g_mag,
             "avg_frame_diff_overlap": avg_fd_overlap,
             "preliminary_motion_label": motion_label,
             "preliminary_direction_label": direction_label,

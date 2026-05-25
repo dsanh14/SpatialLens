@@ -57,17 +57,27 @@ def main() -> None:
         week3_outputs.append(out3)
 
     if len(week3_outputs) > 1:
-        label_path = Path(cfg["evaluation"].get(
-            "label_file", "data/labels/hazard_labels.csv"))
-        labels_df = load_labels(label_path)
-        if not labels_df.empty:
-            hazards = []
-            for o in week3_outputs:
-                p = Path(o["hazards_csv"])
-                if p.exists():
-                    hazards.append(pd.read_csv(p))
-            if hazards:
-                preds = pd.concat(hazards, ignore_index=True)
+        hazards = []
+        for o in week3_outputs:
+            hp = Path(o["hazards_csv"])
+            if hp.exists():
+                hazards.append(pd.read_csv(hp))
+        if hazards:
+            preds = pd.concat(hazards, ignore_index=True)
+
+            if cfg["outputs"].get("save_plots", True):
+                from src.visualize import plot_uncertain_reasons
+                plots_dir = Path("outputs/plots")
+                plots_dir.mkdir(parents=True, exist_ok=True)
+                plot_uncertain_reasons(
+                    preds, plots_dir / "all_videos_uncertain_reasons.png",
+                    title="Why tracks were 'uncertain' — all videos",
+                )
+
+            label_path = Path(cfg["evaluation"].get(
+                "label_file", "data/labels/hazard_labels.csv"))
+            labels_df = load_labels(label_path)
+            if not labels_df.empty:
                 agg = evaluate_hazards(preds, labels_df)
                 save_evaluation(
                     agg,
