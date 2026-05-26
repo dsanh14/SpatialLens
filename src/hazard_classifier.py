@@ -390,7 +390,25 @@ class HazardClassifier:
         # 2-frame tracks (~0.67) and the smallest growth on labeled-approaching
         # 2-frame tracks (~0.74), so it preserves the labeler's conservatism
         # on borderline cases.
+        #
+        # v3b: also salvage 2-frame tracks with strong lateral motion
+        # (|dx_norm| > 0.30 — well above the 0.08 crossing_frac used for
+        # full-length tracks). Checked *before* the approach salvage so
+        # fast-crossing objects whose bbox also grew rapidly (close to
+        # camera) are classified as crossing rather than approaching.
         if (num_frames < self.min_track_frames
+                and num_frames >= 2
+                and image_width
+                and abs(dx_norm) > 0.30):
+            label = ("crossing_left_to_right" if dx_norm > 0
+                     else "crossing_right_to_left")
+            evidence_parts.append(
+                f"short track ({num_frames} frames) but strong lateral "
+                f"motion: dx={dx_total:.1f}px ({dx_norm*100:.1f}% of "
+                f"width); growth={growth_ratio:.2f}, "
+                f"flow_mag={avg_flow_mag:.2f}"
+            )
+        elif (num_frames < self.min_track_frames
                 and num_frames >= 2
                 and growth_ratio > 0.7
                 and avg_flow_dy > 1.0
