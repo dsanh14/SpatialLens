@@ -319,6 +319,8 @@ class HazardClassifier:
         produced, but crossing tests degrade gracefully.
         """
         growth_ratio = _safe_float(row, "bbox_growth_ratio")
+        second_half_growth = _safe_float(row, "second_half_growth_ratio")
+        peak_area_ratio = _safe_float(row, "peak_area_ratio", default=1.0)
         total_disp_norm = _safe_float(row, "total_displacement_norm")
         avg_flow_mag = _safe_float(row, "avg_flow_mag")
         avg_fd_overlap = _safe_float(row, "avg_frame_diff_overlap")
@@ -380,7 +382,27 @@ class HazardClassifier:
         # `static` rule still applies as before.
         evidence_parts: List[str] = []
         uncertain_reason: str = ""
-        if num_frames < self.min_track_frames:
+        # v3: short-track salvage — when a 2-frame track has overwhelming
+        # approach evidence (large bbox growth + clear downward optical
+        # flow + significant flow magnitude) the classification is reliable
+        # enough to emit rather than abstain. The growth>0.7 threshold sits
+        # in the gap between the largest growth observed on labeled-uncertain
+        # 2-frame tracks (~0.67) and the smallest growth on labeled-approaching
+        # 2-frame tracks (~0.74), so it preserves the labeler's conservatism
+        # on borderline cases.
+        if (num_frames < self.min_track_frames
+                and num_frames >= 2
+                and growth_ratio > 0.7
+                and avg_flow_dy > 1.0
+                and avg_flow_mag > self.flow_threshold):
+            label = "approaching"
+            evidence_parts.append(
+                f"short track ({num_frames} frames) but strong approach "
+                f"signal: bbox_growth={growth_ratio:.2f}, "
+                f"flow_dy={avg_flow_dy:.2f} (downward), "
+                f"flow_mag={avg_flow_mag:.2f}"
+            )
+        elif num_frames < self.min_track_frames:
             # Too few detected positions to trust trajectory- or growth-based
             # cues. Surface this explicitly so the reader knows the
             # classifier is being cautious, not failing silently.
@@ -446,6 +468,23 @@ class HazardClassifier:
                     f"= {dx_norm*100:.1f}% of width, but bbox shrinkage "
                     f"takes priority)"
                 )
+        elif (growth_ratio < -0.03
+              and image_width
+              and self.crossing_frac < abs(dx_norm) < self.strong_crossing_frac):
+            # v3 soft moving_away: bbox is shrinking but not past the
+            # strict threshold AND lateral motion is in the ambiguous
+            # band (above crossing_frac but below strong_crossing_frac).
+            # In hand-held footage this lateral drift is often camera
+            # ego-motion rather than the object truly crossing the path,
+            # so prefer the depth signal (shrinking → receding).
+            label = "moving_away"
+            evidence_parts.append(
+                f"bbox shrank slightly (growth_ratio={growth_ratio:.2f}) "
+                f"and lateral motion dx={dx_total:.1f}px "
+                f"({dx_norm*100:.1f}% of width) is below the "
+                f"{self.strong_crossing_frac*100:.0f}% strong-crossing "
+                f"threshold; treating lateral component as ego-motion drift"
+            )
         elif image_width and abs(dx_norm) > self.strong_crossing_frac:
             # strong_crossing: lateral motion dominates the intent of the
             # trajectory, even if bbox is also growing. (v2: new branch
@@ -460,8 +499,35 @@ class HazardClassifier:
                 f"{self.strong_crossing_frac*100:.0f}%; lateral motion "
                 f"dominates depth signal (bbox_growth={growth_ratio:.2f})"
             )
+        elif (num_frames >= 6
+              and growth_ratio > 0.3
+              and peak_area_ratio > 1.5
+              and second_half_growth < -0.20):
+            # v3 trajectory-reversal: bbox grew start->end (would normally
+            # fire `approaching`), but bbox peaked mid-track and then
+            # shrank significantly in the second half. Indicates the
+            # object came close then turned away. Requires a long-enough
+            # track (>=6 frames) and meaningful overall growth (>0.3) to
+            # avoid firing on noisy short tracks or slow approachers
+            # whose end-area dipped briefly. peak_area_ratio>1.5 ensures
+            # the peak is substantially larger than the end (so the
+            # shrinkage is a real depth recession, not detection jitter).
+            label = "moving_away"
+            evidence_parts.append(
+                f"trajectory reversal: bbox peaked at "
+                f"{peak_area_ratio:.2f}x end-area and second-half growth "
+                f"is {second_half_growth:.2f} (overall growth "
+                f"{growth_ratio:.2f}); object approached then receded"
+            )
         elif (approach_score >= self.approach_threshold
-              and growth_ratio > self.growth_threshold):
+              and (growth_ratio > self.growth_threshold
+                   or (growth_ratio > 0 and approach_score >= 0.65))):
+            # v3 slow-approach branch: when the bbox is growing but below
+            # the growth_threshold yet every other approach cue is very
+            # strong (approach_score >= 0.65), trust the combined
+            # evidence rather than letting the crossing rule fire on the
+            # incidental lateral component. Catches diagonal walkers
+            # whose growth is slow because the object is large in frame.
             label = "approaching"
             evidence_parts.append(
                 f"bbox grew by {growth_ratio:.2f} "

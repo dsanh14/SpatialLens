@@ -36,6 +36,8 @@ TRACK_FEATURE_COLUMNS = [
     "start_area",
     "end_area",
     "bbox_growth_ratio",
+    "second_half_growth_ratio",
+    "peak_area_ratio",
     "avg_flow_dx",
     "avg_flow_dy",
     "avg_flow_mag",
@@ -143,6 +145,23 @@ def compute_track_motion_features(
         avg_area = float(g["area"].mean())
         growth_ratio = (end_area - start_area) / (start_area + EPSILON)
 
+        # Sub-track growth signal: catches trajectory-reversal cases
+        # where an object came toward the camera then turned away. The
+        # overall start->end growth_ratio looks "approaching" but the
+        # second-half growth is negative because the object retreated
+        # after passing closest approach. Only meaningful for tracks
+        # with >= 4 frames; shorter tracks fall back to 0.0 (no signal).
+        areas = g["area"].astype(float).tolist()
+        if len(areas) >= 4:
+            mid_idx = len(areas) // 2
+            mid_area = areas[mid_idx]
+            second_half_growth = (end_area - mid_area) / (mid_area + EPSILON)
+            peak_area = max(areas)
+            peak_area_ratio = peak_area / (end_area + EPSILON)
+        else:
+            second_half_growth = 0.0
+            peak_area_ratio = 1.0
+
         avg_flow_dx = float(g["flow_dx"].mean()) if len(g) else 0.0
         avg_flow_dy = float(g["flow_dy"].mean()) if len(g) else 0.0
         avg_flow_mag = float(g["flow_mag"].mean()) if len(g) else 0.0
@@ -176,6 +195,8 @@ def compute_track_motion_features(
             "start_area": start_area,
             "end_area": end_area,
             "bbox_growth_ratio": growth_ratio,
+            "second_half_growth_ratio": second_half_growth,
+            "peak_area_ratio": peak_area_ratio,
             "avg_flow_dx": avg_flow_dx,
             "avg_flow_dy": avg_flow_dy,
             "avg_flow_mag": avg_flow_mag,
