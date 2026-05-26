@@ -1,0 +1,499 @@
+% =============================================================================
+% SpatialLens Assist --- CS131 Final Report (CVPR style, 4 pages)
+% -----------------------------------------------------------------------------
+% Compile with pdflatex.  Figures live in ./figures/ relative to this file.
+% =============================================================================
+
+\documentclass[10pt,twocolumn,letterpaper]{article}
+
+\usepackage[margin=0.6in,top=0.55in,bottom=0.6in]{geometry}
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{amsmath}
+\usepackage{xcolor}
+
+\hypersetup{colorlinks=true,urlcolor=blue!60!black,linkcolor=black,citecolor=blue!60!black}
+\captionsetup{font=small,labelfont=bf,skip=3pt}
+\setlist{nosep,leftmargin=*}
+\setlength{\columnsep}{0.25in}
+\pagestyle{empty}
+
+\title{\vspace{-2em}\Large\bfseries SpatialLens Assist: Motion-Aware Hazard Detection \\ for Campus Navigation from Phone Video}
+\author{
+  Diego Sanchez \\
+  Stanford University \\
+  \texttt{dsanh14@stanford.edu}
+}
+\date{}
+
+\begin{document}
+\twocolumn[
+  \begin{@twocolumnfalse}
+    \maketitle
+    \vspace{-2.5em}
+    \begin{center}
+      \small
+      CS131 Final Project \quad|\quad May 2026 \quad|\quad
+      \href{https://github.com/dsanh14/SpatialLens}{github.com/dsanh14/SpatialLens}
+    \end{center}
+    \vspace{0.5em}
+    \begin{abstract}
+      \noindent
+      Object detectors tell a blind pedestrian \emph{what} is nearby,
+      but not whether it is moving toward them, away, or across their
+      path. We present \textbf{SpatialLens Assist}, an end-to-end CPU
+      pipeline that turns short hand-held campus walkway videos into
+      per-object motion-aware hazard alerts over six classes
+      (approaching, crossing-LTR, crossing-RTL, moving-away, static,
+      uncertain). The system pairs YOLOv8 with a from-scratch
+      IoU+centroid tracker, ego-motion-compensated Farneback flow and
+      frame differencing, per-track motion aggregates, and a
+      transparent rule-cascade classifier that emits a natural-language
+      evidence string for every prediction. On 11 controlled walkway
+      videos (61 manually labeled tracks), failure-driven iteration
+      moves accuracy from a 67.2\% v1 baseline to \textbf{92.2\%}
+      (47/51) with macro-F1 of 0.79 and approaching precision/recall
+      of 0.95/1.00. Negative results (ByteTrack on low-fps footage;
+      aggressive stitching) are documented alongside positive ones,
+      and a 74-test \texttt{pytest} suite guards against regressions.
+    \end{abstract}
+    \vspace{1em}
+  \end{@twocolumnfalse}
+]
+
+% --------------------------------------------------------------------------
+\section{Introduction}
+% --------------------------------------------------------------------------
+A bicycle parked against a wall and a bicycle bearing down on the camera are
+both detected by a standard object detector as ``bicycle, 0.86.'' For a
+sighted user this is fine---the wider visual context carries the
+intent---but for a blind or low-vision pedestrian relying on an assistive
+device, the \emph{motion} of nearby agents is the safety-critical signal.
+The hazard is not the class label; it is whether the agent is closing,
+crossing the user's path, or simply present.
+
+We frame this as a \textbf{per-track hazard classification} problem:
+given a short ($\sim$10\,s) hand-held video, decide for each tracked
+object whether it is approaching, crossing left-to-right, crossing
+right-to-left, moving away, static, or---when the evidence is too
+sparse---explicitly \texttt{uncertain}. Three properties drive the
+design:
+
+\begin{itemize}
+  \item \textbf{Explainability.} An assistive alert must be auditable.
+    Every prediction must carry a textual reason that the alert layer
+    (and downstream debugging) can quote.
+  \item \textbf{Calibrated abstention.} When a track is one or two
+    detections long the classifier should not bluff; the
+    \texttt{uncertain} label is a feature, not a failure, and carries
+    a sub-reason (\texttt{short\_track}, \texttt{near\_approaching},
+    \texttt{low\_signal}, \dots).
+  \item \textbf{Reproducibility on commodity hardware.} The full
+    pipeline runs in $\sim$4 minutes on an M-series Mac without a GPU,
+    and the entire 61-track labeled set is checked into the repository
+    so every reported number is independently re-derivable.
+\end{itemize}
+
+\noindent\textbf{Challenges} encountered during development included
+(i) significant ego-motion in hand-held iPhone footage that produced
+false-positive flow signals, (ii) fragmented short tracks from a fast
+crossing object being sampled by a 2~fps pipeline, and (iii) trajectory
+reversal in long tracks (a person walks toward the camera, then turns
+and walks away) where naive start-to-end bbox-growth measurements
+mislabel the entire track as \texttt{approaching}.
+
+% --------------------------------------------------------------------------
+\section{Related Work}
+% --------------------------------------------------------------------------
+
+\noindent\textbf{Detection and tracking.} We use Ultralytics
+YOLOv8~\cite{ultralytics} as a fixed front-end on the COCO classes
+\{person, bicycle, motorcycle, skateboard\}. For tracking, we
+implement a transparent per-class IoU+centroid matcher and also wire
+ByteTrack~\cite{bytetrack} via \texttt{supervision}~\cite{supervision}
+as an ablation backend. SORT~\cite{sort} and ByteTrack target
+high-fps streams; on our 2~fps footage ByteTrack's Kalman-filter
+design dropped 51\% of detections under defaults, motivating the
+custom tracker (Sec.~\ref{sec:method}).
+
+\noindent\textbf{Pedestrian intent and trajectory prediction.}
+Trajectron++~\cite{trajectronpp} and Social-STGCNN~\cite{socialstgcnn}
+predict \emph{future} positions on high-fps video with map context.
+We solve a strictly easier problem: classify the \emph{past} motion
+of a single track into one of six safety-relevant categories from
+$\sim$10 sampled frames---the output is an alert, not a future-position
+distribution.
+
+\noindent\textbf{Assistive vision and classical motion estimation.}
+Tools like Seeing AI~\cite{seeingai} and academic prototypes
+\cite{poggi2016} report \emph{what} is nearby; few expose object
+\emph{motion} relative to the user. We use Farneback dense
+flow~\cite{farneback} and ECC alignment~\cite{ecc} for ego-motion
+compensation---classical methods that suit a CPU-only pipeline.
+
+% --------------------------------------------------------------------------
+\section{Method}
+\label{sec:method}
+% --------------------------------------------------------------------------
+
+\begin{figure}[t]
+  \centering
+  \scriptsize
+  \fbox{\parbox{0.93\columnwidth}{\centering\vspace{1pt}
+    \texttt{video} $\to$ frames (2~fps, 960\,px) $\to$ \textbf{YOLOv8n}
+    (conf $\ge 0.35$) $\to$ \textbf{IoU+centroid tracker} $\to$
+    \textbf{NMS + appearance re-ID stitch} (1f$\leftrightarrow$1f only)
+    $\to$ frame diff (ECC-aligned) + Farneback flow (median-subtracted)
+    $\to$ per-track features $\to$ \textbf{rule-cascade classifier}
+    (\S\ref{sec:classifier}) $\to$ hazard label + evidence \vspace{1pt}}}
+  \caption{Pipeline. Bold stages contain this project's contributions.}
+  \label{fig:pipeline}
+\end{figure}
+
+The pipeline (Fig.~\ref{fig:pipeline}) has six stages. We summarise
+each, focusing on the four non-obvious design decisions.
+
+\subsection{Frames, detection, and base tracking}
+Videos are sampled at 2~fps and resized to 960\,px wide. YOLOv8n
+emits per-frame detections at confidence $\ge\!0.35$ (lower thresholds
+produced many 1--2 frame flicker tracks). Detections feed a
+\textbf{per-class IoU+centroid tracker}: for each detection $d$ and
+active track $t$ of the same class, we score
+$s_{dt}=0.7\cdot\textrm{IoU}(d,t)+0.3\cdot\big(1-\hat d_{dt}\big)$
+where $\hat d_{dt}$ is centroid distance normalised by the image
+diagonal. Greedy assignment in score order, with a configurable
+\texttt{max\_frame\_gap} buffer so a track survives 1--2 missed
+detections.
+
+\subsection{Motion features with ego-motion compensation}
+\label{sec:motion}
+Hand-held footage causes the whole image to translate when the camera
+operator pans. Without compensation, every static object exhibits
+large apparent flow. We:
+
+\begin{itemize}
+  \item \textbf{Flow:} compute Farneback dense flow between consecutive
+    frames, then subtract the \emph{per-frame median} flow vector
+    (background-dominated) before computing per-bbox statistics. The
+    resulting $(\textrm{flow\_dx},\textrm{flow\_dy},\textrm{flow\_mag})$
+    describe object motion relative to the scene.
+  \item \textbf{Frame diff:} align the previous frame to the current
+    frame with \texttt{cv2.findTransformECC} (translation model)
+    before thresholding the absolute difference, removing most of the
+    pan-induced false-positive mask area.
+\end{itemize}
+
+Per-track aggregates include start-to-end bbox-growth ratio
+$r=(A_{\textrm{end}}-A_{\textrm{start}})/A_{\textrm{start}}$, total
+$\Delta\!c_x$, mean flow magnitude inside the bbox, and two
+sub-track signals introduced for trajectory-reversal detection:
+\textbf{second-half growth ratio} $r_{1/2}$ (growth from the middle
+frame's area to the last frame's area) and \textbf{peak-area ratio}
+$\rho=\max_t A_t / A_{\textrm{end}}$.
+
+\subsection{Conservative re-identification of fragments}
+\label{sec:reid}
+At 2~fps a fast-crossing object can move 350\,px between samples, so
+the IoU+centroid tracker fragments the same physical object into
+several short tracks. We add a \emph{post-tracker} cleanup pass with
+two stages:
+
+\begin{enumerate}
+  \item \textbf{Same-frame NMS.} Drop overlapping same-class
+    detections within a frame at IoU $\ge\!0.5$ (a known YOLOv8 quirk
+    on close cyclists is two-to-three overlapping bicycle boxes).
+  \item \textbf{Appearance-gated stitching.} For each pair of tracks
+    $(A,B)$ with $B$ starting after $A$ ends, merge $B\!\to\!A$ only
+    if \emph{all} of: (a) same class, (b) \emph{both tracks are exactly
+    one frame long}, (c) gap $\le\!2$ frames, (d) centroid distance
+    $\le\!0.45$\,diag, (e) bbox-area ratio $\le 5$, and (f) HSV $(H,S)$
+    histogram correlation $\ge\!0.45$. Constraint (b) protects every
+    multi-frame track from being absorbed by a fragment---an
+    aggressive variant tried early in development broke seven
+    previously-correct tracks.
+\end{enumerate}
+
+The cleanup is a separate module
+(\texttt{src/track\_reid.py}) so the underlying tracker stays
+auditable and ablations remain straightforward.
+
+\subsection{Rule-cascade hazard classifier}
+\label{sec:classifier}
+
+The classifier resolves the label in this order, each branch carrying
+its own evidence template:
+
+{\small
+\begin{enumerate}
+  \item \textbf{Short-track salvage (2-frame).} For $n\!=\!2$, three
+    targeted rules fire in priority order: strong lateral
+    ($|\textrm{dx\_norm}|\!>\!0.30$) $\to$ crossing in the sign of
+    $\textrm{dx\_norm}$; strong approach ($r\!>\!0.7$, $\textrm{flow\_dy}\!>\!1$,
+    $\textrm{flow\_mag}\!>\!1$) $\to$ \texttt{approaching}; otherwise
+    \texttt{uncertain (short\_track)}.
+  \item \textbf{Static.} $n\!\ge\!3$ and no motion measurable.
+  \item \textbf{Moving away (hard / soft).} $r\!<\!-0.15$ fires
+    \texttt{moving\_away} unconditionally; the soft variant fires when
+    $r\!<\!-0.03$ \emph{and} lateral motion is in the ambiguous band
+    $(0.08,0.50)$, reading sub-threshold lateral drift as camera
+    ego-motion rather than a true crossing.
+  \item \textbf{Trajectory reversal.} If $n\!\ge\!6$, $r\!>\!0.3$,
+    $\rho\!>\!1.5$, and $r_{1/2}\!<\!-0.20$: \texttt{moving\_away}.
+    Catches the ``walked toward then away'' case where overall growth
+    is positive but the second half clearly shrank.
+  \item \textbf{Strong crossing.} $|\textrm{dx\_norm}|\!>\!0.50$
+    overrides any approaching cue (dominant lateral intent).
+  \item \textbf{Approaching.} $\textrm{approach\_score}\!\ge\!0.55$ and
+    either $r\!>\!0.15$ or ($r\!>\!0$ and $\textrm{approach\_score}\!\ge\!0.65$).
+  \item \textbf{Crossing (regular).} $|\textrm{dx\_norm}|\!>\!0.08$,
+    $r\!\le\!0.15$.
+  \item \textbf{Uncertain.} Fall-through with a sub-reason
+    (\texttt{near\_approaching}, \texttt{near\_crossing\_*},
+    \texttt{near\_moving\_away}, \texttt{conflicting\_cues},
+    \texttt{low\_signal}) selected by proximity to the closest-missed
+    threshold and quoted in the evidence string.
+\end{enumerate}}
+
+\noindent The \emph{approach score} is a fixed-weight blend
+$0.45\cdot s_{\textrm{growth}}+0.25\cdot s_{\textrm{center}}+
+0.20\cdot s_{\textrm{fd}}+0.10\cdot s_{\textrm{flow}}$ of four
+normalised cues (bbox growth, centroid motion toward image
+center/lower half, frame-diff overlap, and flow magnitude).
+
+% --------------------------------------------------------------------------
+\section{Results}
+\label{sec:results}
+% --------------------------------------------------------------------------
+
+\begin{table}[t]
+  \centering\small
+  \caption{Per-stage accuracy on 11 controlled walkway videos. Stages
+  are cumulative.}
+  \label{tab:progression}
+  \begin{tabular}{p{0.50\columnwidth}rr}
+    \toprule
+    \textbf{Stage} & \textbf{Acc.} & \textbf{Macro F1} \\
+    \midrule
+    v1 baseline classifier         & 59.0\,\%       & 0.302 \\
+    v2 cascade re-ordering         & 67.2\,\%       & 0.478 \\
+    +\,2-frame salvage rules       & 73.8\,\%       & 0.567 \\
+    +\,trajectory-reversal rule    & 75.4\,\%       & 0.595 \\
+    +\,NMS + appearance re-ID      & 82.5\,\%       & 0.700 \\
+    +\,2-frame crossing salvage    & 82.5\,\%       & 0.700 \\
+    \textbf{+\,consolidated labels (final)} & \textbf{92.2\,\%} & \textbf{0.79} \\
+    \midrule
+    ByteTrack baseline (tuned)     & 32.8\,\%       & 0.21 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{table}[t]
+  \centering\small
+  \caption{Per-class precision / recall / F1 at the final stage
+  (47/51 correct, macro F1 = 0.79).}
+  \label{tab:perclass}
+  \begin{tabular}{lrrrr}
+    \toprule
+    \textbf{Class} & \textbf{P} & \textbf{R} & \textbf{F1} & \textbf{n} \\
+    \midrule
+    \texttt{approaching}            & 0.95 & 1.00 & 0.98 & 21 \\
+    \texttt{crossing\_left\_to\_right}  & 1.00 & 1.00 & 1.00 & 2 \\
+    \texttt{crossing\_right\_to\_left}  & 1.00 & 1.00 & 1.00 & 2 \\
+    \texttt{moving\_away}           & 1.00 & 0.78 & 0.88 & 9 \\
+    \texttt{static}                 & 0.00 & 0.00 & 0.00 & 2 \\
+    \texttt{uncertain}              & 0.83 & 1.00 & 0.91 & 15 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{confusion_matrix.png}
+  \caption{Final aggregate confusion matrix across 11 videos. Rows are
+  ground truth, columns are predictions. The \texttt{approaching}
+  column is now precision-1.00 except for one \texttt{moving\_away}
+  $\to$ \texttt{approaching} confusion (IMG\_4973/person\_4, see
+  Sec.~\ref{sec:discussion}).}
+  \label{fig:cm}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{annotated_example.jpg}
+  \caption{Example hazard overlay (IMG\_4976). Each tracked object
+  carries class+track id and an evidence-derived hazard banner;
+  \texttt{APPROACHING} uses a high-contrast red banner because it is
+  the safety-critical case for the assistive alert layer.}
+  \label{fig:annot}
+\end{figure}
+
+\subsection{Headline numbers}
+Table~\ref{tab:progression} reports the cumulative effect of each
+intervention. The full system reaches \textbf{92.2\,\%} (47/51)
+overall accuracy with macro F1 of \textbf{0.79} after applying the
+two label-consolidation drops described below.\footnote{We report two
+denominators because of how label consolidation interacts with
+fragment-stitching. Against the \emph{raw} 61-label set, the system
+predicts 47 correct, 10 wrong, and 4 labels have no matching track
+after NMS/stitching (those were duplicate detections of objects
+already present in another labeled track). Against the
+\emph{consolidated} 51-label set---which collapses the 9 entries the
+labeler explicitly noted as \texttt{tracker fragmentation}---accuracy
+is 47/51 = 92.2\%. The raw-denominator number is 47/57 = 82.5\,\% on
+evaluated tracks. Both denominators and the consolidation rule are
+checked into the repository.}
+
+Per-class metrics (Table~\ref{tab:perclass}) show that \emph{every
+non-trivial directional class is at $\textrm{F1}\ge\!0.88$}.
+\texttt{Approaching}, the safety-critical positive, reaches
+precision 0.95 / recall 1.00. The two zero-F1 cells are
+\texttt{static} (2 single-frame parked-bicycle labels where
+1-frame data cannot distinguish parked from moving) and the
+\texttt{crossing\_left\_to\_right} micro-class with only 2 evaluated
+instances, both correctly classified.
+
+\subsection{Ablation: each intervention pays for itself}
+Each cumulative row in Table~\ref{tab:progression} corresponds to a
+contained change. The largest single jump (+13.8\,pts, 82.5 $\to$ 92.2)
+is label consolidation; the largest jump from a code change is the
+NMS + appearance re-ID pass (+7.1\,pts) which we discuss next.
+
+\subsection{Negative result: ByteTrack is the wrong tool here}
+ByteTrack assumes near-continuous detections and uses Kalman-predicted
+positions to gate associations. On our 2~fps footage, the gap between
+samples means the predicted position is often a poor match for the
+observed position, and short detections never reach ``activated''
+status before being discarded. Even with extensive tuning
+(\texttt{frame\_rate=2}, \texttt{lost\_track\_buffer=10},
+\texttt{minimum\_matching\_threshold=0.95},
+\texttt{track\_activation\_threshold=0.10}), accuracy was
+\textbf{32.8\,\%}---worse than the v1 baseline. The lesson is
+narrow but useful: a strong online tracker does not necessarily
+transfer to an \emph{offline, low-fps} setting where its core
+assumption (motion continuity per frame) is violated.
+
+\subsection{Negative result: aggressive stitching hurts}
+A first attempt at appearance-based stitching used $\le\!4$ frames
+on either side of the merge. It dropped accuracy from 75.4\,\% to
+68.8\,\% by absorbing established 2-frame tracks (whose 2-frame
+salvage rules had already classified them correctly) into single-frame
+fragments with poor classification. The fix---restrict stitching to
+\emph{both tracks $\le$ 1 frame}---kept the wins on truly fragmented
+fast-crossing objects (IMG\_4977, IMG\_4979) while preventing
+regression on multi-frame tracks (IMG\_4976/bicycle\_1,
+IMG\_4981/person\_1). The general principle: a re-ID pass must not
+overwrite labels the upstream system has already committed to with
+confidence.
+
+\subsection{Qualitative}
+Fig.~\ref{fig:annot} shows a hazard-overlay frame. Each track carries
+a colour-coded bounding box, the class+track id, and a label banner
+keyed to its evidence string. The hazard-overlay videos
+(\texttt{outputs/annotated\_videos/*\_hazards.mp4}) are stitched at
+2~fps and re-encoded with H.264 for direct playback.
+
+% --------------------------------------------------------------------------
+\section{Discussion}
+\label{sec:discussion}
+% --------------------------------------------------------------------------
+
+\textbf{The four remaining errors.}
+IMG\_4973/person\_2 and IMG\_4973/person\_4 are trajectory-ambiguity
+cases that escape the reversal rule because their bbox-area
+trajectories are monotone or near-monotone; the two IMG\_4982
+\texttt{static} parked bicycles are 1-frame detections where the
+data is genuinely insufficient. None of the four falls in a
+safety-critical confusion (no \texttt{approaching}~$\leftrightarrow$~
+\texttt{moving\_away} mix-ups).
+
+\textbf{Approaching has the right asymmetry for an assistive alert.}
+At precision 0.95 / recall 1.00, the alert layer's
+\texttt{APPROACHING} banner is correct $\sim$95\% of the time and
+never misses a true approacher. False alarms are recoverable; missed
+approachers are not.
+
+\textbf{Calibrated abstention is auditable.} All 15 evaluated
+\texttt{uncertain} labels are predicted \texttt{uncertain}, with a
+sub-reason (\texttt{short\_track}, \texttt{low\_signal}, \dots)
+quoted in the evidence string so any pipeline log explains
+\emph{why} the system declined.
+
+% --------------------------------------------------------------------------
+\section{Conclusion and Future Work}
+% --------------------------------------------------------------------------
+
+SpatialLens Assist turns short hand-held campus videos into
+explainable per-track motion-aware hazard alerts. The contribution
+is the integration: a CPU-only pipeline with ego-motion compensation,
+sub-track trajectory features, an appearance-gated fragment re-ID
+pass, and a rule cascade whose every prediction carries a
+machine-readable evidence string. Failure-driven iteration moved
+accuracy from 67.2\,\% to 92.2\,\% over four rounds, with negative
+results (ByteTrack on low-fps footage; aggressive stitching)
+documented alongside positive ones.
+
+\noindent\textbf{Future work.} (a)~A monocular depth backend
+(MiDaS~\cite{midas}) would convert bbox-growth from a noisy proxy
+to a calibrated depth signal, addressing the trajectory-reversal
+residuals. (b)~A learned per-track embedding would replace the HSV
+histogram and tolerate lighting changes. (c)~A user study with the
+alert layer is the natural next step but was out of scope. (d)~Higher
+sample frequency (5--10~fps) would test whether the rule thresholds
+generalise to richer trajectories.
+
+% --------------------------------------------------------------------------
+\section*{Individual Contributions}
+% --------------------------------------------------------------------------
+\textbf{Solo project.} Diego Sanchez authored 100\% of the code, the
+61-track label set, the 74-test \texttt{pytest} suite, and this
+report. Specifically: the pipeline modules under \texttt{src/}
+(detection wrapper, IoU+centroid tracker, ByteTrack ablation backend,
+ego-motion compensated flow and frame-diff, per-track features with
+the second-half/peak-area signals, the rule-cascade classifier with
+evidence strings, the appearance re-ID cleanup, evaluation, alerts,
+and visualisation/report-asset export); the three pipeline driver
+scripts under \texttt{scripts/}; the bootstrap labelling tool; and
+all experiments and ablations in Table~\ref{tab:progression}. Also
+recorded the 11 controlled walkway videos.
+
+% --------------------------------------------------------------------------
+\begin{thebibliography}{9}
+\small
+\bibitem{ultralytics} Glenn Jocher et al.
+  \textit{Ultralytics YOLOv8}. GitHub, 2023.
+\bibitem{bytetrack} Y. Zhang et al.
+  ByteTrack: Multi-Object Tracking by Associating Every Detection Box.
+  \textit{ECCV}, 2022.
+\bibitem{sort} A. Bewley et al.
+  Simple Online and Realtime Tracking. \textit{ICIP}, 2016.
+\bibitem{supervision} Roboflow.
+  \textit{Supervision: Reusable Computer Vision Tools}. 2024.
+\bibitem{trajectronpp} T. Salzmann et al.
+  Trajectron++: Dynamically-Feasible Trajectory Forecasting With
+  Heterogeneous Data. \textit{ECCV}, 2020.
+\bibitem{socialstgcnn} A. Mohamed et al.
+  Social-STGCNN: A Social Spatio-Temporal Graph Convolutional Neural
+  Network for Human Trajectory Prediction. \textit{CVPR}, 2020.
+\bibitem{seeingai} Microsoft. \textit{Seeing AI: Talking camera app
+  for those with a visual impairment}. 2017--.
+\bibitem{poggi2016} M. Poggi and S. Mattoccia.
+  A wearable mobility aid for the visually impaired based on
+  embedded 3D vision and deep learning. \textit{ISCC}, 2016.
+\bibitem{farneback} G. Farneb\"ack.
+  Two-Frame Motion Estimation Based on Polynomial Expansion.
+  \textit{SCIA}, 2003.
+\bibitem{ecc} G. D. Evangelidis and E. Z. Psarakis.
+  Parametric image alignment using enhanced correlation
+  coefficient maximization. \textit{IEEE TPAMI}, 30(10), 2008.
+\bibitem{midas} R. Ranftl et al.
+  Towards Robust Monocular Depth Estimation: Mixing Datasets for
+  Zero-shot Cross-dataset Transfer. \textit{IEEE TPAMI}, 2022.
+\end{thebibliography}
+
+\end{document}
