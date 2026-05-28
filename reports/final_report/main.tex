@@ -250,46 +250,32 @@ two stages:
     previously-correct tracks.
 \end{enumerate}
 
-The cleanup is a separate module
-(\texttt{src/track\_reid.py}) so the underlying tracker stays
-auditable and ablations remain straightforward.
+The cleanup is a separate module (\texttt{src/track\_reid.py}) so the
+tracker stays auditable and ablations remain straightforward.
 
 \subsection{Rule-cascade hazard classifier}
 \label{sec:classifier}
 
-The classifier resolves the label in this order, each branch carrying
-its own evidence template:
-
-{\small
-\begin{enumerate}
-  \item \textbf{Short-track salvage (2-frame).} For $n\!=\!2$, three
-    targeted rules fire in priority order: strong lateral
-    ($|\textrm{dx\_norm}|\!>\!0.30$) $\to$ crossing in the sign of
-    $\textrm{dx\_norm}$; strong approach ($r\!>\!0.7$, $\textrm{flow\_dy}\!>\!1$,
-    $\textrm{flow\_mag}\!>\!1$) $\to$ \texttt{approaching}; otherwise
-    \texttt{uncertain (short\_track)}.
-  \item \textbf{Static.} $n\!\ge\!3$ and no motion measurable.
-  \item \textbf{Moving away (hard / soft).} $r\!<\!-0.15$ fires
-    \texttt{moving\_away} unconditionally; the soft variant fires when
-    $r\!<\!-0.03$ \emph{and} lateral motion is in the ambiguous band
-    $(0.08,0.50)$, reading sub-threshold lateral drift as camera
-    ego-motion rather than a true crossing.
-  \item \textbf{Trajectory reversal.} If $n\!\ge\!6$, $r\!>\!0.3$,
-    $\rho\!>\!1.5$, and $r_{1/2}\!<\!-0.20$: \texttt{moving\_away}.
-    Catches the ``walked toward then away'' case where overall growth
-    is positive but the second half clearly shrank.
-  \item \textbf{Strong crossing.} $|\textrm{dx\_norm}|\!>\!0.50$
-    overrides any approaching cue (dominant lateral intent).
-  \item \textbf{Approaching.} $\textrm{approach\_score}\!\ge\!0.55$ and
-    either $r\!>\!0.15$ or ($r\!>\!0$ and $\textrm{approach\_score}\!\ge\!0.65$).
-  \item \textbf{Crossing (regular).} $|\textrm{dx\_norm}|\!>\!0.08$,
-    $r\!\le\!0.15$.
-  \item \textbf{Uncertain.} Fall-through with a sub-reason
-    (\texttt{near\_approaching}, \texttt{near\_crossing\_*},
-    \texttt{near\_moving\_away}, \texttt{conflicting\_cues},
-    \texttt{low\_signal}) selected by proximity to the closest-missed
-    threshold and quoted in the evidence string.
-\end{enumerate}}
+The classifier resolves the label by a priority cascade, each branch
+carrying its own evidence template ($r$: bbox-growth ratio;
+$\rho$: peak/end area ratio; $r_{1/2}$: second-half growth):
+\textbf{(1)~Short-track salvage} ($n\!=\!2$): strong lateral
+$|\textrm{dx\_norm}|\!>\!0.30\to$crossing, else strong approach
+($r\!>\!0.7$, downward flow)$\to$\texttt{approaching}, else
+\texttt{uncertain}. \textbf{(2)~Static} if $n\!\ge\!3$ and no motion.
+\textbf{(3)~Moving-away} if $r\!<\!-0.15$, or the \emph{soft} variant
+($-0.15\!<\!r\!<\!-0.03$ with sub-strong lateral motion read as
+ego-motion drift). \textbf{(4)~Trajectory reversal} ($n\!\ge\!6$,
+$r\!>\!0.3$, $\rho\!>\!1.5$, $r_{1/2}\!<\!-0.20$)$\to$
+\texttt{moving\_away} for the ``approached then turned away'' case.
+\textbf{(5)~Strong crossing} ($|\textrm{dx\_norm}|\!>\!0.50$)
+overrides approach. \textbf{(6)~Approaching} if
+$\textrm{approach\_score}\!\ge\!0.55$ and ($r\!>\!0.15$ or the
+slow-approach allowance $r\!>\!0$ with score $\ge\!0.65$).
+\textbf{(7)~Crossing} if $|\textrm{dx\_norm}|\!>\!0.08$, $r\!\le\!0.15$.
+\textbf{(8)~Uncertain} fall-through, tagged with the closest-missed
+sub-reason (\texttt{near\_approaching}, \texttt{low\_signal}, \dots)
+quoted in the evidence string.
 
 \noindent The \emph{approach score} is a fixed-weight blend
 $0.45\cdot s_{\textrm{growth}}+0.25\cdot s_{\textrm{center}}+
@@ -325,43 +311,49 @@ number reads accuracy \emph{per unique physical object}.
   \label{fig:cm}
 \end{figure}
 
-\begin{table}[t]
-  \centering\scriptsize
-  \caption{\textbf{Left:} per-class P/R/F1 (raw labels, n=support).
-  \textbf{Right:} cumulative progression (each row adds one component
-  on top of the previous). Both raw and consolidated denominators
-  reported. ByteTrack reported in raw column only.}
+\begin{table*}[t]
+  \centering\small
+  \caption{\textbf{(a)} Per-class precision / recall / F1 at the final
+  stage (raw labels; $n$ = support). \textbf{(b)} Cumulative
+  progression: each row adds one component on top of the previous, with
+  both the raw and consolidated denominators (Sec.~\ref{sec:denoms});
+  ByteTrack is an alternative tracker reported on raw labels only.}
   \label{tab:perclass_progression}
-  \begin{minipage}{0.45\columnwidth}\centering
-  \begin{tabular}{lrrr}
+  \begin{minipage}[t]{0.44\textwidth}
+  \centering
+  \textbf{\small (a) Per-class metrics}\\[3pt]
+  \begin{tabular}{lcccc}
     \toprule
-    \textbf{Class} & \textbf{P} & \textbf{R} & \textbf{n} \\
+    \textbf{Class} & \textbf{P} & \textbf{R} & \textbf{F1} & \textbf{n} \\
     \midrule
-    \texttt{approach}    & 0.95 & 0.88 & 24 \\
-    \texttt{cross\_LTR}  & 1.00 & 0.50 & 4 \\
-    \texttt{cross\_RTL}  & 1.00 & 0.67 & 3 \\
-    \texttt{mov\_away}   & 1.00 & 0.78 & 9 \\
-    \texttt{static}      & 0.00 & 0.00 & 2 \\
-    \texttt{uncertain}   & 0.62 & 1.00 & 15 \\
+    \texttt{approaching}            & 0.95 & 0.88 & 0.91 & 24 \\
+    \texttt{crossing\_left\_to\_right}  & 1.00 & 0.50 & 0.67 & 4 \\
+    \texttt{crossing\_right\_to\_left}  & 1.00 & 0.67 & 0.80 & 3 \\
+    \texttt{moving\_away}           & 1.00 & 0.78 & 0.88 & 9 \\
+    \texttt{static}                 & 0.00 & 0.00 & 0.00 & 2 \\
+    \texttt{uncertain}              & 0.62 & 1.00 & 0.77 & 15 \\
     \bottomrule
   \end{tabular}
   \end{minipage}\hfill
-  \begin{minipage}{0.52\columnwidth}\centering
-  \begin{tabular}{lrr}
+  \begin{minipage}[t]{0.50\textwidth}
+  \centering
+  \textbf{\small (b) Cumulative progression}\\[3pt]
+  \begin{tabular}{lcc}
     \toprule
-    \textbf{Stage} & \textbf{raw} & \textbf{cons.} \\
+    \textbf{Stage} & \textbf{raw acc.} & \textbf{cons. acc.} \\
     \midrule
-    v1 baseline             & 59.0\,\% & --- \\
-    v2 cascade reorder      & 67.2\,\% & --- \\
-    +\,2f salvage rules     & 73.8\,\% & --- \\
-    +\,traj.~reversal       & 75.4\,\% & --- \\
-    +\,NMS + appearance     & 82.5\,\% & --- \\
-    +\,2f cross. salvage    & \textbf{82.5\,\%} & \textbf{92.2\,\%} \\
-    ByteTrack (tuned)       & 32.8\,\% & --- \\
+    v1 baseline classifier      & 59.0\,\% & --- \\
+    v2 cascade re-ordering      & 67.2\,\% & --- \\
+    \,+\,2-frame salvage rules  & 73.8\,\% & --- \\
+    \,+\,trajectory reversal    & 75.4\,\% & --- \\
+    \,+\,NMS + appearance re-ID & 82.5\,\% & --- \\
+    \,+\,2f crossing salvage    & \textbf{82.5\,\%} & \textbf{92.2\,\%} \\
+    \midrule
+    ByteTrack baseline (tuned)  & 32.8\,\% & --- \\
     \bottomrule
   \end{tabular}
   \end{minipage}
-\end{table}
+\end{table*}
 
 \begin{figure}[t]
   \centering
@@ -459,14 +451,11 @@ nearly always correct and rarely misses a true approacher. False
 alarms are recoverable; missed approachers are not.
 
 \textbf{Calibrated abstention is auditable.} All 15 evaluated
-\texttt{uncertain} labels are predicted \texttt{uncertain}; the
-sub-reason (\texttt{short\_track}, \texttt{low\_signal},
-\texttt{near\_approaching}, \dots) is quoted in the evidence
-string so a pipeline log explains \emph{why} the system declined.
-The 3 false-positive \texttt{uncertain} predictions (precision
-0.62 raw) correspond exactly to the failure-figure panels and
-are the right kind of error -- the system stays silent rather
-than lying about intent.
+\texttt{uncertain} labels are predicted \texttt{uncertain}, each
+tagged with a sub-reason quoted in the evidence string. The 3
+false-positive \texttt{uncertain} predictions (precision 0.62 raw)
+are exactly the failure-figure panels -- the right kind of error,
+staying silent rather than lying about intent.
 
 \textbf{On the consolidation decision.} We publish the consolidation
 explicitly rather than quietly reporting only the larger number. The
@@ -492,14 +481,12 @@ to the appearance re-ID pass and the 2-frame salvage rules, and we
 report two negative results (ByteTrack on low-fps footage;
 aggressive stitching) alongside the positive ones.
 
-\noindent\textbf{Future work.} (a)~A monocular depth backend
-(MiDaS~\cite{midas}) would convert bbox-growth from a noisy proxy
-to a calibrated depth signal, addressing the trajectory-reversal
-residuals. (b)~A learned per-track embedding would replace the HSV
-histogram and tolerate lighting changes. (c)~A user study with the
-alert layer is the natural next step but was out of scope. (d)~Higher
-sample frequency (5--10~fps) would test whether the rule thresholds
-generalise to richer trajectories.
+\noindent\textbf{Future work.} (a)~a monocular depth backend
+(MiDaS~\cite{midas}) to turn bbox-growth from a noisy proxy into a
+calibrated signal, addressing the trajectory-reversal residuals;
+(b)~a learned per-track embedding to replace the HSV histogram;
+(c)~a user study with the alert layer; and (d)~higher sampling
+(5--10~fps) to test threshold generalisation.
 
 % --------------------------------------------------------------------------
 \section*{Individual Contributions}
@@ -520,8 +507,10 @@ recorded the 11 controlled walkway videos and hand-labeled all 61
 ground-truth tracks.
 
 % --------------------------------------------------------------------------
+\begingroup
+\footnotesize
 \begin{thebibliography}{9}
-\small
+\setlength{\itemsep}{1pt plus 0.3ex}
 \bibitem{ultralytics} Glenn Jocher et al.
   \textit{Ultralytics YOLOv8}. GitHub, 2023.
 \bibitem{bytetrack} Y. Zhang et al.
@@ -552,5 +541,6 @@ ground-truth tracks.
   Towards Robust Monocular Depth Estimation: Mixing Datasets for
   Zero-shot Cross-dataset Transfer. \textit{IEEE TPAMI}, 2022.
 \end{thebibliography}
+\endgroup
 
 \end{document}
