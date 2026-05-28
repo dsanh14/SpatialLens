@@ -17,6 +17,18 @@
 \usepackage{url}
 \usepackage{amsmath}
 \usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric,arrows.meta,positioning,calc,fit,backgrounds}
+
+% Architecture-diagram palette + text macros.
+\definecolor{cInput}{HTML}{ECEFF1}
+\definecolor{cDet}{HTML}{D7E3F0}
+\definecolor{cTrack}{HTML}{FBE2C4}
+\definecolor{cMotion}{HTML}{D8ECD9}
+\definecolor{cClf}{HTML}{E7DCF0}
+\definecolor{cContrib}{HTML}{E8820C}
+\newcommand{\hdr}[1]{{\sffamily\bfseries\footnotesize #1}}
+\newcommand{\subt}[1]{{\sffamily\scriptsize\textcolor{black!75}{#1}}}
 
 \hypersetup{colorlinks=true,urlcolor=blue!60!black,linkcolor=black,citecolor=blue!60!black}
 \captionsetup{font=small,labelfont=bf,skip=3pt}
@@ -145,19 +157,41 @@ well-suited to the CPU-only constraint.
 \label{sec:method}
 % --------------------------------------------------------------------------
 
-\begin{figure}[t]
+\begin{figure*}[t]
   \centering
-  \scriptsize
-  \fbox{\parbox{0.93\columnwidth}{\centering\vspace{1pt}
-    \texttt{video} $\to$ frames (2~fps, 960\,px) $\to$ \textbf{YOLOv8n}
-    (conf $\ge 0.35$) $\to$ \textbf{IoU+centroid tracker} $\to$
-    \textbf{NMS + appearance re-ID stitch} (1f$\leftrightarrow$1f only)
-    $\to$ frame diff (ECC-aligned) + Farneback flow (median-subtracted)
-    $\to$ per-track features $\to$ \textbf{rule-cascade classifier}
-    (\S\ref{sec:classifier}) $\to$ hazard label + evidence \vspace{1pt}}}
-  \caption{Pipeline. Bold stages contain this project's contributions.}
+  \begin{tikzpicture}[
+    font=\sffamily,
+    stage/.style={rounded corners=4pt, draw=black!45, line width=0.7pt,
+                  align=center, minimum height=15mm, inner sep=4pt},
+    flow/.style={-{Stealth[length=2.6mm,width=2mm]}, line width=1.1pt, draw=black!60},
+  ]
+  \node[stage, fill=cInput, text width=17mm] (inp)
+    {\hdr{Input}\\[1pt]\subt{video @ 2\,fps\\960\,px frames}};
+  \node[stage, fill=cDet, right=6mm of inp, text width=21mm] (det)
+    {\hdr{Detection}\\[1pt]\subt{YOLOv8n\\conf $\geq 0.35$\\4 COCO classes}};
+  \node[stage, fill=cTrack, right=6mm of det, text width=30mm] (trk)
+    {\hdr{Tracking + Re-ID}\\[1pt]\subt{IoU+centroid tracker\\$\star$ same-frame NMS\\$\star$ appearance stitch}};
+  \node[stage, fill=cMotion, right=6mm of trk, text width=29mm] (mot)
+    {\hdr{Motion features}\\[1pt]\subt{ego-comp.\ flow\\+ frame-diff\\$\star$ sub-track growth}};
+  \node[stage, fill=cClf, right=6mm of mot, text width=26mm] (clf)
+    {\hdr{Rule cascade}\\[1pt]\subt{$\star$ 2f salvage\\$\star$ reversal rule\\$\star$ ego-motion guard}};
+  \node[draw=black!45, rounded corners=8pt, fill=cContrib!12, line width=0.7pt,
+        right=6mm of clf, text width=25mm, align=center, inner sep=5pt] (out)
+    {\hdr{Alert + evidence}\\[2pt]\subt{``Bike approaching\\from the left.''}};
+  \draw[flow] (inp) -- (det);
+  \draw[flow] (det) -- (trk);
+  \draw[flow] (trk) -- (mot);
+  \draw[flow] (mot) -- (clf);
+  \draw[flow] (clf) -- (out);
+  \end{tikzpicture}
+  \caption{End-to-end SpatialLens pipeline. The detector is
+  off-the-shelf; \textcolor{cContrib}{$\star$} marks the four
+  contributions evaluated in Section~\ref{sec:results} (same-frame
+  NMS, appearance-gated re-ID, sub-track growth features, and the
+  rule-cascade salvage/guard rules). Every prediction carries a
+  natural-language \emph{evidence string} that the alert layer quotes.}
   \label{fig:pipeline}
-\end{figure}
+\end{figure*}
 
 The pipeline (Fig.~\ref{fig:pipeline}) has six stages. We summarise
 each, focusing on the four non-obvious design decisions.
@@ -270,21 +304,16 @@ center/lower half, frame-diff overlap, and flow magnitude).
 
 \subsection{Two honest denominators}
 \label{sec:denoms}
-We report \emph{both} accuracy numbers for transparency. Against the
-\textbf{raw 61-label set} the full system predicts 47 correct, 10
-wrong, and 4 labels have no matching prediction (their detections
-were absorbed by NMS or re-ID into a different labeled track), giving
-\textbf{82.5\,\% on the 57 evaluated tracks} (macro-F1 0.67).
-Against a \textbf{consolidated 51-label set} -- which collapses the
-9 ground-truth entries the labeler explicitly annotated as
-``tracker fragmentation'' or ``duplicate'' in the \texttt{notes}
-column into a single representative each -- the system is
-\textbf{92.2\,\% (47/51) with macro-F1 0.79}. The consolidation
-rule, the original labels, and the consolidated labels are all
-checked into the repository. We report results against both
-denominators throughout; the consolidated number reflects accuracy
-\emph{per unique physical object}, the raw number reflects accuracy
-\emph{per ground-truth row}.
+We report \emph{both} accuracy numbers. Against the \textbf{raw
+61-label set} the system is 47 correct, 10 wrong, and 4 labels have
+no matching prediction (their detections were absorbed by NMS/re-ID
+into another labeled track): \textbf{82.5\,\% on 57 evaluated tracks}
+(macro-F1 0.67). Against a \textbf{consolidated 51-label set} --
+collapsing the 9 entries the labeler explicitly annotated as
+``fragmentation''/``duplicate'' into one representative each -- the
+system is \textbf{92.2\,\% (47/51), macro-F1 0.79}. Both label sets
+and the consolidation rule are in the repository; the consolidated
+number reads accuracy \emph{per unique physical object}.
 
 \begin{figure}[t]
   \centering
@@ -334,29 +363,16 @@ denominators throughout; the consolidated number reflects accuracy
   \end{minipage}
 \end{table}
 
-\begin{table}[t]
-  \centering\small
-  \caption{Isolated ablation: full system minus exactly one component.
-  Largest single contributor is appearance re-ID ($-6.2$\,pts raw);
-  each 2-frame salvage is worth $\sim$3.5\,pts. From
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{ablation_bars.png}
+  \caption{Isolated ablation: accuracy drop (raw labels) when each
+  component is removed from the full 82.5\,\% system, one at a time.
+  Appearance re-ID is the largest single contributor; removing both
+  NMS and re-ID together costs $7.1$\,pts (down to 75.4\,\%). From
   \texttt{scripts/run\_ablations.py}.}
-  \label{tab:ablations}
-  \begin{tabular}{p{0.49\columnwidth}rr}
-    \toprule
-    \textbf{Variant} & \textbf{raw} & \textbf{cons.} \\
-    \midrule
-    full system                                & 82.5\,\% & 92.2\,\% \\
-    \,$-$ appearance re-ID stitching           & 76.3\,\% & 88.2\,\% \\
-    \,$-$ 2-frame crossing salvage             & 78.9\,\% & 88.2\,\% \\
-    \,$-$ 2-frame approach salvage             & 78.9\,\% & 88.2\,\% \\
-    \,$-$ trajectory-reversal rule             & 80.7\,\% & 90.2\,\% \\
-    \,$-$ soft moving-away (ego-motion guard)  & 80.7\,\% & 90.2\,\% \\
-    \,$-$ slow-approach allowance              & 80.7\,\% & 90.2\,\% \\
-    \,$-$ same-frame NMS                       & 81.4\,\% & 92.3\,\% \\
-    \,$-$ NMS and re-ID (both off)             & 75.4\,\% & 88.5\,\% \\
-    \bottomrule
-  \end{tabular}
-\end{table}
+  \label{fig:ablations}
+\end{figure}
 
 \begin{figure}[t]
   \centering
@@ -385,16 +401,16 @@ fragmentation) to 16/16; the worst absolute count is IMG\_4982
 tracks the re-ID gate is too conservative to merge.
 
 \subsection{Isolated ablations: where the gains come from}
-Each row of Table~\ref{tab:ablations} toggles off exactly one
-component and re-runs the full pipeline. The appearance re-ID
-stitching is the largest single contributor ($-6.2$\,pts raw when
-removed); the two 2-frame salvage rules each contribute
-$\sim3.5$\,pts; the trajectory-reversal, soft moving-away, and
-slow-approach rules each contribute $\sim2$\,pts. Same-frame NMS
-alone barely moves the metric because the overlapping-bicycle
-issue it addresses is rare in our data -- but removing NMS
-\emph{and} re-ID together drops the raw number to 75.4\,\%, a
-$-7.1$\,pt joint cost.
+Fig.~\ref{fig:ablations} toggles off exactly one component at a time
+and re-runs the full pipeline. The appearance re-ID stitching is the
+largest single contributor ($-6.2$\,pts raw when removed); the two
+2-frame salvage rules each contribute $\sim3.5$\,pts; the
+trajectory-reversal, soft moving-away, and slow-approach rules each
+contribute $\sim2$\,pts. Same-frame NMS alone barely moves the metric
+because the overlapping-bicycle issue it addresses is rare in our
+data -- but removing NMS \emph{and} re-ID together drops the raw
+number to 75.4\,\%, a $-7.1$\,pt joint cost, showing the two
+fragment-cleanup passes are complementary.
 
 \subsection{Baseline comparison}
 For calibration: random uniform across 6 classes is 16.7\,\%,
@@ -452,16 +468,13 @@ The 3 false-positive \texttt{uncertain} predictions (precision
 are the right kind of error -- the system stays silent rather
 than lying about intent.
 
-\textbf{On the consolidation decision.} We made the consolidation
-of fragment-duplicate labels public and explicit rather than
-quietly publishing the larger number. The labeler's own
-\texttt{notes} column flagged 13 ground-truth entries as
-``tracker fragmentation'' or ``duplicate'' -- 9 of those
-9 collapse cleanly into existing labeled physical objects. The
-raw-denominator number (82.5\,\%) is the right metric to compare
-against any future system that does not apply re-ID; the
-consolidated number (92.2\,\%) is the right metric for an
-operational ``per real-world hazard'' read on the system.
+\textbf{On the consolidation decision.} We publish the consolidation
+explicitly rather than quietly reporting only the larger number. The
+labeler's \texttt{notes} flagged 13 entries as ``fragmentation''/
+``duplicate''; 9 collapse cleanly into existing labeled objects.
+The raw 82.5\,\% is the metric to compare against any system without
+re-ID; the consolidated 92.2\,\% is the ``per real-world hazard''
+read.
 
 % --------------------------------------------------------------------------
 \section{Conclusion and Future Work}
@@ -500,10 +513,11 @@ the second-half/peak-area signals, the rule-cascade classifier with
 evidence strings, the appearance re-ID cleanup in
 \texttt{src/track\_reid.py}, evaluation, alerts, and visualisation);
 all pipeline driver scripts (including \texttt{run\_ablations.py}
-which produces Table~\ref{tab:ablations} and
-\texttt{make\_failure\_figure.py} which produces
-Fig.~\ref{fig:failure}); recorded the 11 controlled walkway videos
-and hand-labeled all 61 ground-truth tracks.
+producing Fig.~\ref{fig:ablations}, \texttt{make\_paper\_figures.py}
+producing Figs.~\ref{fig:cm}/\ref{fig:ablations}, and
+\texttt{make\_failure\_figure.py} producing Fig.~\ref{fig:failure});
+recorded the 11 controlled walkway videos and hand-labeled all 61
+ground-truth tracks.
 
 % --------------------------------------------------------------------------
 \begin{thebibliography}{9}
