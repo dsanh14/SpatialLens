@@ -109,7 +109,12 @@ class HazardClassifier:
         5. ``uncertain`` otherwise
     """
 
-    def __init__(self, config: dict) -> None:
+    def __init__(self, config: dict, disabled_rules: Optional[set] = None) -> None:
+        # `disabled_rules` is used only by the ablation script
+        # (scripts/run_ablations.py) to measure the isolated
+        # contribution of each v3 salvage rule. Default behavior
+        # (empty set) preserves all rules.
+        self.disabled_rules = disabled_rules or set()
         haz = config.get("hazard", {})
         self.approach_threshold = float(haz.get("approach_score_threshold", 0.55))
         self.crossing_frac = float(haz.get("crossing_threshold_frac_width", 0.08))
@@ -396,7 +401,8 @@ class HazardClassifier:
         # full-length tracks). Checked *before* the approach salvage so
         # fast-crossing objects whose bbox also grew rapidly (close to
         # camera) are classified as crossing rather than approaching.
-        if (num_frames < self.min_track_frames
+        if ("2f_crossing_salvage" not in self.disabled_rules
+                and num_frames < self.min_track_frames
                 and num_frames >= 2
                 and image_width
                 and abs(dx_norm) > 0.30):
@@ -408,7 +414,8 @@ class HazardClassifier:
                 f"width); growth={growth_ratio:.2f}, "
                 f"flow_mag={avg_flow_mag:.2f}"
             )
-        elif (num_frames < self.min_track_frames
+        elif ("2f_approach_salvage" not in self.disabled_rules
+                and num_frames < self.min_track_frames
                 and num_frames >= 2
                 and growth_ratio > 0.7
                 and avg_flow_dy > 1.0
@@ -486,7 +493,8 @@ class HazardClassifier:
                     f"= {dx_norm*100:.1f}% of width, but bbox shrinkage "
                     f"takes priority)"
                 )
-        elif (growth_ratio < -0.03
+        elif ("soft_moving_away" not in self.disabled_rules
+              and growth_ratio < -0.03
               and image_width
               and self.crossing_frac < abs(dx_norm) < self.strong_crossing_frac):
             # v3 soft moving_away: bbox is shrinking but not past the
@@ -517,7 +525,8 @@ class HazardClassifier:
                 f"{self.strong_crossing_frac*100:.0f}%; lateral motion "
                 f"dominates depth signal (bbox_growth={growth_ratio:.2f})"
             )
-        elif (num_frames >= 6
+        elif ("trajectory_reversal" not in self.disabled_rules
+              and num_frames >= 6
               and growth_ratio > 0.3
               and peak_area_ratio > 1.5
               and second_half_growth < -0.20):
@@ -539,7 +548,9 @@ class HazardClassifier:
             )
         elif (approach_score >= self.approach_threshold
               and (growth_ratio > self.growth_threshold
-                   or (growth_ratio > 0 and approach_score >= 0.65))):
+                   or ("slow_approach" not in self.disabled_rules
+                       and growth_ratio > 0
+                       and approach_score >= 0.65))):
             # v3 slow-approach branch: when the bbox is growing but below
             # the growth_threshold yet every other approach cue is very
             # strong (approach_score >= 0.65), trust the combined

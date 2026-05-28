@@ -98,3 +98,13 @@ data/labels/*_template.csv
 
 # Ultralytics global settings dir, written into the project root on first run.
 Ultralytics/
+
+# LaTeX build artifacts (keep main.tex / main.pdf; ignore the rest).
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+missfont.log
