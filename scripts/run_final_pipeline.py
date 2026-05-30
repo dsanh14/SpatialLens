@@ -78,16 +78,22 @@ def main() -> None:
                 "label_file", "data/labels/hazard_labels.csv"))
             labels_df = load_labels(label_path)
             if not labels_df.empty:
+                eval_dir = Path(cfg["evaluation"].get(
+                    "output_dir", "outputs/evaluation"))
                 agg = evaluate_hazards(preds, labels_df)
-                save_evaluation(
-                    agg,
-                    Path(cfg["evaluation"].get(
-                        "output_dir", "outputs/evaluation")),
-                )
-                print(f"\n[final] aggregate accuracy="
-                      f"{agg.get('overall_accuracy', 0):.2f}, "
+                save_evaluation(agg, eval_dir)
+                sel = agg.get("selective_accuracy") or {}
+                print(f"\n[final] decidable accuracy="
+                      f"{sel.get('decidable_accuracy', float('nan')):.2f} "
+                      f"(>= {sel.get('min_track_frames', 3)} frames), "
+                      f"overall={agg.get('overall_accuracy', 0):.2f}, "
                       f"approaching_F1={agg.get('approaching_f1', 0):.2f}, "
                       f"macro_F1={agg.get('macro_f1', 0):.2f}")
+                # Slide-ready aggregate results card (headlines decidable acc).
+                from src.report_outputs import export_aggregate_results
+                agg_dir = Path("outputs/slide_assets/_aggregate")
+                export_aggregate_results(
+                    eval_dir / "all_videos_evaluation_summary.json", agg_dir)
 
     print("\n=== Final pipeline outputs ===")
     for o12, o3 in zip(week12_outputs, week3_outputs):

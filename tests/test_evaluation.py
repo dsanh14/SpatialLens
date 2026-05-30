@@ -103,6 +103,38 @@ def test_load_labels_drops_blank_true_label(tmp_path):
     assert set(df["track_id"]) == {"a", "c"}
 
 
+def test_selective_accuracy_excludes_short_tracks():
+    # 2 long tracks (both correct) + 2 short tracks (both wrong abstentions).
+    preds = pd.DataFrame([
+        {**_pred("v1", "a", "approaching"), "num_frames": 8},
+        {**_pred("v1", "b", "moving_away"), "num_frames": 5},
+        {**_pred("v1", "c", "uncertain"), "num_frames": 1},
+        {**_pred("v1", "d", "uncertain"), "num_frames": 2},
+    ])
+    labels = pd.DataFrame([
+        _label("v1", "a", "approaching"),
+        _label("v1", "b", "moving_away"),
+        _label("v1", "c", "crossing_left_to_right"),
+        _label("v1", "d", "approaching"),
+    ])
+    m = evaluate_hazards(preds, labels, min_track_frames=3)
+    # Overall: 2/4 correct.
+    assert math.isclose(m["overall_accuracy"], 0.5)
+    sel = m["selective_accuracy"]
+    assert sel is not None
+    assert sel["num_decidable_tracks"] == 2
+    assert sel["num_short_tracks"] == 2
+    # Decidable subset (>=3 frames) is fully correct.
+    assert math.isclose(sel["decidable_accuracy"], 1.0)
+
+
+def test_selective_accuracy_absent_without_num_frames():
+    preds = pd.DataFrame([_pred("v1", "a", "approaching")])
+    labels = pd.DataFrame([_label("v1", "a", "approaching")])
+    m = evaluate_hazards(preds, labels)
+    assert m["selective_accuracy"] is None
+
+
 def test_confusion_matrix_has_correct_shape_and_orientation():
     preds = pd.DataFrame([
         _pred("v1", "a", "crossing_left_to_right"),

@@ -1,0 +1,12 @@
+video,n_raw,n_eval,correct_raw,raw_acc,n_dedup,correct_dedup,dedup_acc,dominant_error
+IMG_4972,7,6,6,6/6,7,6,6/7,-
+IMG_4973,6,6,4,4/6,6,4,4/6,moving_away->uncertain
+IMG_4974,4,4,4,4/4,4,4,4/4,-
+IMG_4975,5,5,5,5/5,5,5,5/5,-
+IMG_4976,6,6,6,6/6,6,6,6/6,-
+IMG_4977,5,3,1,1/3,1,1,1/1,crossing_left_to_right->uncertain
+IMG_4978,1,1,1,1/1,1,1,1/1,-
+IMG_4979,2,1,1,1/1,1,1,1/1,-
+IMG_4980,2,2,2,2/2,2,2,2/2,-
+IMG_4981,7,7,6,6/7,6,6,6/6,crossing_right_to_left->uncertain
+IMG_4982,16,16,11,11/16,13,11,11/13,approaching->uncertain

@@ -22,12 +22,16 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.config import load_config  # noqa: E402
-from src.report_outputs import export_slide_assets  # noqa: E402
+from src.report_outputs import (  # noqa: E402
+    export_aggregate_results,
+    export_slide_assets,
+)
 from src.visualize import plot_uncertain_reasons  # noqa: E402
 
 HAZARDS_DIR = Path("outputs/hazards")
 TRACKS_DIR = Path("outputs/tracks")
 PLOTS_DIR = Path("outputs/plots")
+EVALUATION_DIR = Path("outputs/evaluation")
 SLIDE_ASSETS_DIR = Path("outputs/slide_assets")
 
 
@@ -86,6 +90,19 @@ def main() -> None:
             shutil.copy2(agg_src, agg_dir / "all_videos_uncertain_reasons.png")
             print(f"[aggregate] uncertain-reasons summary -> "
                   f"{agg_dir / 'all_videos_uncertain_reasons.png'}")
+
+            # Aggregate confusion matrix (if it was generated).
+            cm_png = PLOTS_DIR / "all_videos_confusion_matrix.png"
+            if cm_png.exists():
+                shutil.copy2(cm_png, agg_dir / "all_videos_confusion_matrix.png")
+                print(f"[aggregate] confusion matrix -> "
+                      f"{agg_dir / 'all_videos_confusion_matrix.png'}")
+
+            # Slide-ready results card (headlines decidable accuracy).
+            res = export_aggregate_results(
+                EVALUATION_DIR / "all_videos_evaluation_summary.json", agg_dir)
+            for k, v in res.items():
+                print(f"[aggregate] {k} -> {v}")
 
 
 if __name__ == "__main__":

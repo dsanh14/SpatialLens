@@ -3,31 +3,25 @@
 ## Quick steps
 
 1. Open [Overleaf](https://www.overleaf.com) → **New Project** → **Blank Project**
-2. Select all text in the default `main.tex`, delete it, and **paste** the contents of `main.tex` from this folder
-3. In the left file tree: **New Folder** → name it `figures`
-4. Upload these three files into `figures/`:
-   - `figures/confusion_matrix.png`
-   - `figures/uncertain_reasons.png`
-   - `figures/annotated_example.jpg`
-5. **Recompile** (pdfLaTeX, default) → **Download PDF**
+2. Paste `main.tex` from this folder
+3. Create folder `figures/` and upload:
+   - `figure1_overview.png`
+   - `figure2_evaluation.png`
+   - `figure3_qualitative.png`
+4. **Recompile** (pdfLaTeX) → **Download PDF**
 
-## Or upload as a zip
+## Regenerate figures locally
 
-From the repo root:
+```bash
+python scripts/generate_progress_report_figures.py
+cd reports/progress_report && pdflatex main.tex && pdflatex main.tex
+```
+
+## Zip upload
 
 ```bash
 cd reports/progress_report
-zip -r progress_report_overleaf.zip main.tex figures/
+zip -r progress_report_overleaf.zip main.tex figures/figure1_overview.png figures/figure2_evaluation.png figures/figure3_qualitative.png
 ```
 
-In Overleaf: **New Project** → **Upload Project** → choose `progress_report_overleaf.zip`
-
-## Project layout Overleaf expects
-
-```
-main.tex          ← paste or upload
-figures/
-  confusion_matrix.png
-  uncertain_reasons.png
-  annotated_example.jpg
-```
+Expected layout: **up to 5 pages**, CS231N-style two-column report with abstract, numbered sections/subsections, tables, and three full-width figures.

@@ -1,0 +1,7 @@
+true_label,approaching,crossing_left_to_right,crossing_right_to_left,moving_away,static,uncertain
+approaching,2,0,0,0,0,0
+crossing_left_to_right,0,0,0,0,0,0
+crossing_right_to_left,0,0,1,0,0,1
+moving_away,0,0,1,1,0,0
+static,0,0,0,0,0,0
+uncertain,0,0,0,0,0,1

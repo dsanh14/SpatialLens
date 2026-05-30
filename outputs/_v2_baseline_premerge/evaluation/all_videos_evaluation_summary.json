@@ -1,0 +1,117 @@
+{
+  "video_id": null,
+  "num_labeled_tracks": 52,
+  "num_predicted_tracks": 57,
+  "num_evaluated_tracks": 51,
+  "overall_accuracy": 0.9215686274509803,
+  "per_class_accuracy": {
+    "approaching": 1.0,
+    "crossing_left_to_right": 1.0,
+    "crossing_right_to_left": 1.0,
+    "moving_away": 0.7777777777777778,
+    "static": 0.0,
+    "uncertain": 1.0
+  },
+  "per_class_metrics": {
+    "approaching": {
+      "precision": 0.9545454545454546,
+      "recall": 1.0,
+      "f1": 0.9767441860465117,
+      "support": 21
+    },
+    "crossing_left_to_right": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 2
+    },
+    "crossing_right_to_left": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 2
+    },
+    "moving_away": {
+      "precision": 1.0,
+      "recall": 0.7777777777777778,
+      "f1": 0.8750000000000001,
+      "support": 9
+    },
+    "static": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 2
+    },
+    "uncertain": {
+      "precision": 0.8333333333333334,
+      "recall": 1.0,
+      "f1": 0.9090909090909091,
+      "support": 15
+    }
+  },
+  "approaching_precision": 0.9545454545454546,
+  "approaching_recall": 1.0,
+  "approaching_f1": 0.9767441860465117,
+  "macro_f1": 0.7934725158562368,
+  "macro_f1_sklearn": null,
+  "confusion_matrix": {
+    "approaching": {
+      "approaching": 21,
+      "crossing_left_to_right": 0,
+      "crossing_right_to_left": 0,
+      "moving_away": 0,
+      "static": 0,
+      "uncertain": 0
+    },
+    "crossing_left_to_right": {
+      "approaching": 0,
+      "crossing_left_to_right": 2,
+      "crossing_right_to_left": 0,
+      "moving_away": 0,
+      "static": 0,
+      "uncertain": 0
+    },
+    "crossing_right_to_left": {
+      "approaching": 0,
+      "crossing_left_to_right": 0,
+      "crossing_right_to_left": 2,
+      "moving_away": 0,
+      "static": 0,
+      "uncertain": 0
+    },
+    "moving_away": {
+      "approaching": 1,
+      "crossing_left_to_right": 0,
+      "crossing_right_to_left": 0,
+      "moving_away": 7,
+      "static": 0,
+      "uncertain": 1
+    },
+    "static": {
+      "approaching": 0,
+      "crossing_left_to_right": 0,
+      "crossing_right_to_left": 0,
+      "moving_away": 0,
+      "static": 0,
+      "uncertain": 2
+    },
+    "uncertain": {
+      "approaching": 0,
+      "crossing_left_to_right": 0,
+      "crossing_right_to_left": 0,
+      "moving_away": 0,
+      "static": 0,
+      "uncertain": 15
+    }
+  },
+  "confusion_matrix_orientation": "rows=true_label, cols=predicted_label",
+  "labels": [
+    "approaching",
+    "crossing_left_to_right",
+    "crossing_right_to_left",
+    "moving_away",
+    "static",
+    "uncertain"
+  ]
+}

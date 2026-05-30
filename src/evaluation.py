@@ -110,12 +110,22 @@ def evaluate_hazards(
     pred_df: pd.DataFrame,
     labels_df: pd.DataFrame,
     video_id: Optional[str] = None,
+    min_track_frames: int = 3,
 ) -> dict:
     """Compute accuracy / per-class metrics / confusion matrix.
 
     Returns a dict with all metrics. If no matched rows exist (no labels
     for the predicted tracks), the result is still a dict but with a
     ``message`` explaining why metrics are empty.
+
+    When the predictions carry a ``num_frames`` column, a *selective*
+    ("decidable") accuracy is also reported: accuracy restricted to
+    tracks with at least ``min_track_frames`` detections. Below that
+    threshold the classifier deliberately abstains as
+    ``uncertain/short_track`` (a single frame carries no motion signal),
+    so this number isolates classifier quality from tracker
+    fragmentation. It is reported *alongside* — never instead of — the
+    overall accuracy and the abstention count.
     """
     if labels_df is None or labels_df.empty:
         return {
@@ -166,6 +176,24 @@ def evaluate_hazards(
     per_class_prf = _per_class_prf(y_true, y_pred, labels)
     cm = _confusion_matrix(y_true, y_pred, labels)
 
+    # Selective ("decidable") accuracy on tracks with enough temporal
+    # support to classify. Requires a num_frames column on the predictions.
+    selective: Optional[dict] = None
+    if "num_frames" in merged.columns:
+        nf = pd.to_numeric(merged["num_frames"], errors="coerce")
+        dec_mask = nf >= int(min_track_frames)
+        dec = merged[dec_mask]
+        if len(dec) > 0:
+            dt = dec["true_label"].astype(str).tolist()
+            dp = dec["hazard_label"].astype(str).tolist()
+            dec_acc = sum(1 for t, p in zip(dt, dp) if t == p) / len(dt)
+            selective = {
+                "min_track_frames": int(min_track_frames),
+                "num_decidable_tracks": int(len(dec)),
+                "decidable_accuracy": float(dec_acc),
+                "num_short_tracks": int(len(merged) - len(dec)),
+            }
+
     approach_metrics = per_class_prf.get(POSITIVE_LABEL, {})
 
     macro_f1 = float(
@@ -186,6 +214,7 @@ def evaluate_hazards(
         "num_predicted_tracks": int(len(pred_df)),
         "num_evaluated_tracks": int(len(merged)),
         "overall_accuracy": float(overall_acc),
+        "selective_accuracy": selective,
         "per_class_accuracy": per_class_acc,
         "per_class_metrics": per_class_prf,
         "approaching_precision": float(approach_metrics.get("precision", 0.0)),
