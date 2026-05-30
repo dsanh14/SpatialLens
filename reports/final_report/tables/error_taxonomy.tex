@@ -1,0 +1,11 @@
+\begin{tabular}{p{0.19\linewidth}p{0.30\linewidth}p{0.18\linewidth}p{0.23\linewidth}}
+\toprule
+Error type & Cause & Example & Proposed fix \\
+\midrule
+Short-track fragmentation & tracker links only 1--2 frames at 2\,fps & IMG\_4982 bicycle\_1 & higher fps; learned re-ID embedding \\
+Static abstention & only 2 static examples, both 1--2 frame fragments & IMG\_4982 bicycle\_2 & explicit \texttt{stationary} branch with depth cue \\
+Crossing $\to$ uncertain & fast crossing object fragments before $|dx_\mathrm{norm}|$ accumulates & IMG\_4977 skateboard & denser sampling; salvage at $n{=}1$ \\
+Moving-away $\to$ approaching & monotone bbox growth despite physical recession (no depth cue) & IMG\_4973 person\_4 & monocular depth (MiDaS) \\
+Trajectory-reversal miss & person approached then turned; $\rho{<}1.5$ & IMG\_4973 person\_2 & softer reversal threshold; second-half flow direction \\
+\bottomrule
+\end{tabular}

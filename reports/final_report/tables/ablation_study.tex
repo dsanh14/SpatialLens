@@ -1,0 +1,15 @@
+\begin{tabular}{llccc}
+\toprule
+Configuration & Change & Raw acc. & Cons. acc. & Macro F1 \\
+\midrule
+Full system & all components on & 82.5\% & 92.2\% & 0.67 \\
+$-$ 2-frame crossing salvage & no n=2 crossing rule & 78.9\% & 88.2\% & 0.55 \\
+$-$ 2-frame approach salvage & no n=2 approach rule & 78.9\% & 88.2\% & 0.66 \\
+$-$ Soft moving-away & tight $r$ threshold & 80.7\% & 90.2\% & 0.64 \\
+$-$ Slow-approach allowance & no $r{>}0$ slow-approach & 80.7\% & 90.2\% & 0.65 \\
+$-$ Trajectory-reversal rule & no reversal heuristic & 80.7\% & 90.2\% & 0.65 \\
+$-$ Appearance re-ID & no fragment stitching & 76.3\% & 88.2\% & 0.55 \\
+$-$ Same-frame NMS & no intra-frame dedupe & 81.4\% & 92.3\% & 0.65 \\
+$-$ NMS and re-ID (both off) & fragments preserved & 75.4\% & 88.5\% & 0.55 \\
+\bottomrule
+\end{tabular}
