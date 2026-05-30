@@ -26,16 +26,25 @@
 
 \title{\Large\textbf{SpatialLens Assist: Motion-Aware Hazard Detection\\for Campus Navigation}}
 
-\author{Diego Sanchez\\
-Stanford University\\
-Stanford, CA\\
-\href{https://github.com/dsanh14/SpatialLens}{github.com/dsanh14/SpatialLens}}
+\author{%
+  \textbf{Diego Sanchez} \\
+  Department of Computer Science \\
+  Stanford University \\
+  \texttt{dsanh14@stanford.edu}
+}
 
-\date{May 2026}
+\date{}
 
 \begin{document}
 
 \maketitle
+\vspace{-0.8em}
+\begin{center}
+\small
+CS131 Final Project \quad|\quad May 2026 \quad|\quad
+\href{https://github.com/dsanh14/SpatialLens}{github.com/dsanh14/SpatialLens}
+\end{center}
+\vspace{0.4em}
 
 \begin{abstract}
 Assistive navigation systems must communicate not only \emph{what} is nearby but \emph{how} it moves relative to the walker. We present \textbf{SpatialLens Assist}, an offline pipeline that converts short campus-walkway videos into motion-aware hazard alerts for blind and low-vision pedestrians. Each tracked object is classified into one of six hazard categories using a rule cascade over ego-motion-compensated optical flow and bounding-box growth, with a textual evidence string for every prediction. On 11 campus videos and 61 manually labeled tracks, the system achieves \textbf{93.3\,\% decidable accuracy} on tracks with $\ge$3 frames and \textbf{82.5\,\% overall accuracy}; the gap is dominated by deliberate \texttt{short\_track} abstentions on 1--2 frame tracker fragments. The safety-critical \texttt{approaching} class reaches precision 0.95 and recall 0.88. Ablations show that raising the tracker frame-gap buffer (+15.3\,pp) and a v2 rule cascade (+3.6\,pp vs.\ removing \texttt{strong\_crossing}) are the largest accuracy drivers; an opt-in ByteTrack backend is a negative result for low-fps offline footage.
