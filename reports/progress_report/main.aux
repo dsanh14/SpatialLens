@@ -9,3 +9,43 @@
 \@writefile{toc}{\contentsline {subsection}{\numberline {1.1}Problem Statement}{1}{subsection.1.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {1.2}Contributions}{1}{subsection.1.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {2}Related Work}{1}{section.2}\protected@file@percent }
+\citation{yolo}
+\@writefile{toc}{\contentsline {section}{\numberline {3}Methods}{2}{section.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Detection and Tracking}{2}{subsection.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Motion Feature Extraction}{2}{subsection.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Hazard Rule Cascade}{2}{subsection.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Assistive Alerts and Explainability}{2}{subsection.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}Dataset and Evaluation Protocol}{2}{section.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}Results}{2}{section.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Quantitative Results}{2}{subsection.5.1}\protected@file@percent }
+\newlabel{sec:quant}{{5.1}{2}{Quantitative Results}{subsection.5.1}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Per-class metrics on 57 evaluated tracks (11 videos).}}{2}{table.caption.5}\protected@file@percent }
+\newlabel{tab:perclass}{{1}{2}{Per-class metrics on 57 evaluated tracks (11 videos)}{table.caption.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Failure Analysis}{2}{subsection.5.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces End-to-end SpatialLens Assist pipeline. Each track receives a hazard label and an evidence string; ego-motion compensation is applied to optical flow and frame differencing before classification.}}{3}{figure.caption.2}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:pipeline}{{1}{3}{End-to-end SpatialLens Assist pipeline. Each track receives a hazard label and an evidence string; ego-motion compensation is applied to optical flow and frame differencing before classification}{figure.caption.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Example hazard overlay on IMG\_4976: approaching pedestrians are highlighted with red banners; evidence text is printed below each bounding box.}}{3}{figure.caption.3}\protected@file@percent }
+\newlabel{fig:overlay}{{2}{3}{Example hazard overlay on IMG\_4976: approaching pedestrians are highlighted with red banners; evidence text is printed below each bounding box}{figure.caption.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Decidable accuracy (tracks with $\ge $3 frames) vs.\ overall accuracy including deliberate \texttt  {short\_track} abstentions.}}{3}{figure.caption.4}\protected@file@percent }
+\newlabel{fig:accuracy}{{3}{3}{Decidable accuracy (tracks with $\ge $3 frames) vs.\ overall accuracy including deliberate \texttt {short\_track} abstentions}{figure.caption.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Ablation study on the labeled evaluation set.}}{3}{table.caption.6}\protected@file@percent }
+\newlabel{tab:ablation}{{2}{3}{Ablation study on the labeled evaluation set}{table.caption.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Qualitative Results}{3}{subsection.5.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Ablation study: raising \texttt  {max\_frame\_gap} is the largest gain; removing the v2 \texttt  {strong\_crossing} rule drops accuracy to 78.9\,\%.}}{4}{figure.caption.7}\protected@file@percent }
+\newlabel{fig:ablations}{{4}{4}{Ablation study: raising \texttt {max\_frame\_gap} is the largest gain; removing the v2 \texttt {strong\_crossing} rule drops accuracy to 78.9\,\%}{figure.caption.7}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Aggregate confusion matrix (rows = ground truth, columns = predicted).}}{4}{figure.caption.8}\protected@file@percent }
+\newlabel{fig:confusion}{{5}{4}{Aggregate confusion matrix (rows = ground truth, columns = predicted)}{figure.caption.8}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Discussion and Deviations}{4}{section.6}\protected@file@percent }
+\newlabel{sec:ablations}{{6}{4}{Discussion and Deviations}{section.6}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Breakdown of \texttt  {uncertain\_reason} sub-labels across all videos. \texttt  {short\_track} dominates, motivating post-hoc track merging.}}{4}{figure.caption.9}\protected@file@percent }
+\newlabel{fig:uncertain}{{6}{4}{Breakdown of \texttt {uncertain\_reason} sub-labels across all videos. \texttt {short\_track} dominates, motivating post-hoc track merging}{figure.caption.9}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Track trajectories in image coordinates (IMG\_4974).}}{4}{figure.caption.10}\protected@file@percent }
+\newlabel{fig:trajectories}{{7}{4}{Track trajectories in image coordinates (IMG\_4974)}{figure.caption.10}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Remaining Work}{4}{section.7}\protected@file@percent }
+\bibcite{yolo}{1}
+\bibcite{bytetrack}{2}
+\bibcite{farneback}{3}
+\bibcite{ecc}{4}
+\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{5}{section.8}\protected@file@percent }
+\gdef \@abspage@last{5}

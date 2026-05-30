@@ -1,27 +1,29 @@
 # Overleaf setup
 
-## Quick steps
+## Upload these files
 
-1. Open [Overleaf](https://www.overleaf.com) → **New Project** → **Blank Project**
-2. Paste `main.tex` from this folder
-3. Create folder `figures/` and upload:
-   - `figure1_overview.png`
-   - `figure2_evaluation.png`
-   - `figure3_qualitative.png`
-4. **Recompile** (pdfLaTeX) → **Download PDF**
+Paste `main.tex` and create folder `figures/` with **one file per figure**:
 
-## Regenerate figures locally
+| File | What it shows |
+|------|----------------|
+| `fig_pipeline.png` | End-to-end pipeline diagram |
+| `fig_hazard_overlay.jpg` | Annotated demo frame (IMG\_4976) |
+| `fig_accuracy.png` | Decidable vs overall accuracy bars |
+| `fig_ablations.png` | Ablation bar chart |
+| `fig_confusion_matrix.png` | Confusion matrix heatmap |
+| `fig_uncertain_reasons.png` | Uncertain-reason breakdown |
+| `fig_trajectories.png` | Track trajectories (IMG\_4974) |
+
+Generate locally:
 
 ```bash
 python scripts/generate_progress_report_figures.py
-cd reports/progress_report && pdflatex main.tex && pdflatex main.tex
+cd reports/progress_report && pdflatex main.tex
 ```
 
-## Zip upload
+Zip upload:
 
 ```bash
 cd reports/progress_report
-zip -r progress_report_overleaf.zip main.tex figures/figure1_overview.png figures/figure2_evaluation.png figures/figure3_qualitative.png
+zip -r progress_report_overleaf.zip main.tex figures/fig_*.png figures/fig_*.jpg
 ```
-
-Expected layout: **up to 5 pages**, CS231N-style two-column report with abstract, numbered sections/subsections, tables, and three full-width figures.

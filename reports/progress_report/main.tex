@@ -2,10 +2,10 @@
 % OVERLEAF — copy/paste instructions
 % -----------------------------------------------------------------------------
 % 1. New Project → Blank Project → paste this file as main.tex
-% 2. New Folder → figures/  and upload:
-%      figure1_overview.png
-%      figure2_evaluation.png
-%      figure3_qualitative.png
+% 2. New Folder → figures/  and upload all fig_*.png / fig_*.jpg:
+%      fig_pipeline.png, fig_hazard_overlay.jpg, fig_accuracy.png,
+%      fig_ablations.png, fig_confusion_matrix.png, fig_uncertain_reasons.png,
+%      fig_trajectories.png
 % 3. Compiler → pdfLaTeX → Recompile → Download PDF
 % =============================================================================
 
@@ -17,6 +17,7 @@
 \usepackage{booktabs}
 \usepackage{amsmath}
 \usepackage{caption}
+\usepackage{xcolor}
 \usepackage{hyperref}
 \usepackage{enumitem}
 
@@ -80,7 +81,7 @@ Object detection for assistive navigation commonly builds on YOLO-family detecto
 
 \section{Methods}
 
-Figure~\ref{fig:overview} summarizes the end-to-end architecture. The pipeline has five stages: detection, tracking, motion-feature extraction, hazard classification, and alert generation.
+Figure~\ref{fig:pipeline} summarizes the end-to-end architecture. The pipeline has five stages: detection, tracking, motion-feature extraction, hazard classification, and alert generation.
 
 \subsection{Detection and Tracking}
 
@@ -111,18 +112,21 @@ Every label includes a textual evidence string used by the alert layer.
 
 \subsection{Assistive Alerts and Explainability}
 
-The alert module maps hazard labels to spoken messages (e.g.\ ``Bike approaching from the left.''). For \texttt{uncertain} tracks the message quotes the \texttt{uncertain\_reason}: ``Person detected briefly; not enough frames to judge motion'' for \texttt{short\_track}. Annotated frames and MP4 demos overlay bbox color, hazard label, and evidence text; videos are encoded with H.264 for macOS QuickTime compatibility.
+The alert module maps hazard labels to spoken messages (e.g.\ ``Bike approaching from the left.''). For \texttt{uncertain} tracks the message quotes the \texttt{uncertain\_reason}: ``Person detected briefly; not enough frames to judge motion'' for \texttt{short\_track}. Annotated frames and MP4 demos overlay bbox color, hazard label, and evidence text; videos are encoded with H.264 for macOS QuickTime compatibility (Figure~\ref{fig:overlay}).
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=\textwidth]{figure1_overview.png}
-\caption{Overview of SpatialLens Assist.
-(\textbf{a})~End-to-end pipeline.
-(\textbf{b})~Decidable vs.\ overall accuracy on 57 matched tracks.
-(\textbf{c})~Ablation accuracies.
-(\textbf{d})~Qualitative hazard overlay from IMG\_4976.}
-\label{fig:overview}
+\includegraphics[width=0.92\textwidth]{fig_pipeline.png}
+\caption{End-to-end SpatialLens Assist pipeline. Each track receives a hazard label and an evidence string; ego-motion compensation is applied to optical flow and frame differencing before classification.}
+\label{fig:pipeline}
 \end{figure*}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{fig_hazard_overlay.jpg}
+\caption{Example hazard overlay on IMG\_4976: approaching pedestrians are highlighted with red banners; evidence text is printed below each bounding box.}
+\label{fig:overlay}
+\end{figure}
 
 \section{Dataset and Evaluation Protocol}
 
@@ -143,7 +147,14 @@ The alert module maps hazard labels to spoken messages (e.g.\ ``Bike approaching
 \subsection{Quantitative Results}
 \label{sec:quant}
 
-Table~\ref{tab:perclass} reports per-class metrics on the aggregate labeled set. Table~\ref{tab:ablation} summarizes ablations. Headline numbers: \textbf{93.3\,\% decidable} (28/30), \textbf{82.5\,\% overall} (47/57), macro-F1 0.671. The safety-critical \texttt{approaching} class---the primary collision-warning category---achieves F1 0.91 at precision 0.95.
+Table~\ref{tab:perclass} reports per-class metrics on the aggregate labeled set. Figure~\ref{fig:accuracy} shows headline accuracy; Figure~\ref{fig:ablations} and Table~\ref{tab:ablation} summarize ablations. The safety-critical \texttt{approaching} class---the primary collision-warning category---achieves F1 0.91 at precision 0.95.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{fig_accuracy.png}
+\caption{Decidable accuracy (tracks with $\ge$3 frames) vs.\ overall accuracy including deliberate \texttt{short\_track} abstentions. Macro F1 = 0.671; \texttt{approaching} precision/recall = 0.95/0.88.}
+\label{fig:accuracy}
+\end{figure}
 
 \begin{table}[h]
 \centering
@@ -186,35 +197,45 @@ ByteTrack backend (tuned, low fps) & $\sim$50\,\% det.\ retained \\
 \end{tabular}
 \end{table}
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{fig_ablations.png}
+\caption{Ablation study: raising \texttt{max\_frame\_gap} is the largest gain; removing the v2 \texttt{strong\_crossing} rule drops accuracy to 78.9\,\%.}
+\label{fig:ablations}
+\end{figure}
+
 \subsection{Failure Analysis}
 
-Figure~\ref{fig:eval} decomposes remaining errors.
-\textbf{Confusion matrix (a):} the \texttt{approaching} column is clean; most off-diagonal mass flows to \texttt{uncertain} on 1--2 frame tracker fragments.
-\textbf{Uncertain reasons (b):} \texttt{short\_track} accounts for 98\,\% of uncertain predictions (39/40), indicating tracker fragmentation rather than classifier confusion as the dominant failure mode.
+Figure~\ref{fig:confusion} and Figure~\ref{fig:uncertain} decompose remaining errors.
+The \texttt{approaching} column in the confusion matrix is clean; most off-diagonal mass flows to \texttt{uncertain} on 1--2 frame tracker fragments.
+\texttt{short\_track} accounts for 98\,\% of uncertain predictions (39/40), indicating tracker fragmentation rather than classifier confusion as the dominant failure mode.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{fig_confusion_matrix.png}
+\caption{Aggregate confusion matrix (rows = ground truth, columns = predicted).}
+\label{fig:confusion}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{fig_uncertain_reasons.png}
+\caption{Breakdown of \texttt{uncertain\_reason} sub-labels across all videos. \texttt{short\_track} dominates, motivating post-hoc track merging.}
+\label{fig:uncertain}
+\end{figure}
 \textbf{Priority conflicts} (diagonal walkers labeled \texttt{approaching} instead of \texttt{crossing}) were reduced by the v2 cascade; one \texttt{moving\_away} track is still misclassified as \texttt{approaching} when bbox growth briefly spikes.
 \textbf{Static objects} (parked bicycles) appear for only one frame and correctly abstain as \texttt{short\_track}, yielding 0\,\% static F1 on the labeled set.
 
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{figure2_evaluation.png}
-\caption{Evaluation and failure analysis.
-(\textbf{a})~Aggregate confusion matrix.
-(\textbf{b})~\texttt{uncertain\_reason} breakdown; \texttt{short\_track} dominates, motivating post-hoc track merging.}
-\label{fig:eval}
-\end{figure*}
-
 \subsection{Qualitative Results}
 
-Figure~\ref{fig:qual} shows representative outputs. Trajectories from IMG\_4974 illustrate centroid paths used for crossing detection. The hazard overlay from IMG\_4976 highlights approaching pedestrians with red \texttt{APPROACHING} banners and prints evidence strings below each bbox. Uncontrolled clip IMG\_4989 exposes the remaining limit: $\sim$50\,\% of tracks fall to \texttt{uncertain/short\_track} when objects pass through the frame in only 1--2 sampled frames.
+Figure~\ref{fig:trajectories} shows centroid paths from IMG\_4974 used for crossing detection. Uncontrolled clip IMG\_4989 exposes the remaining limit: $\sim$50\,\% of tracks fall to \texttt{uncertain/short\_track} when objects pass through the frame in only 1--2 sampled frames.
 
-\begin{figure*}[t]
+\begin{figure}[t]
 \centering
-\includegraphics[width=\textwidth]{figure3_qualitative.png}
-\caption{Qualitative pipeline outputs.
-(\textbf{a})~Track trajectories in image coordinates (IMG\_4974).
-(\textbf{b})~Hazard-annotated frame with evidence strings (IMG\_4976).}
-\label{fig:qual}
-\end{figure*}
+\includegraphics[width=\columnwidth]{fig_trajectories.png}
+\caption{Track trajectories in image coordinates (IMG\_4974).}
+\label{fig:trajectories}
+\end{figure}
 
 \section{Discussion and Deviations}
 \label{sec:ablations}
