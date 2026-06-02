@@ -477,20 +477,29 @@ user-centred evaluation with blind/low-vision walkers.
 % --------------------------------------------------------------------------
 \section*{Individual Contributions}
 % --------------------------------------------------------------------------
-\textbf{Solo project.} Diego Sanchez authored 100\% of the code, the
-61-track label set, the 74-test \texttt{pytest} suite, and this
-report. Specifically: all pipeline modules under \texttt{src/}
-(detection wrapper, IoU+centroid tracker, ByteTrack ablation backend,
-ego-motion compensated flow and frame-diff, per-track features with
-the second-half/peak-area signals, the rule-cascade classifier with
-evidence strings, the appearance re-ID cleanup in
-\texttt{src/track\_reid.py}, evaluation, alerts, and visualisation);
-all pipeline driver scripts (\texttt{run\_ablations.py} produces
-\Cref{fig:ablations} and the full ablation tables in
-\Cref{app:detail}; \texttt{make\_final\_figures.py} produces
-\Cref{fig:cm,fig:temporal,fig:scatter,fig:qual,fig:uncert} and all
-booktabs tables); recorded the 11 controlled walkway videos and
-hand-labelled all 61 ground-truth tracks.
+\textbf{Solo project.} Diego Sanchez completed 100\% of the work. He
+wrote all pipeline code under \texttt{src/} --- the detection wrapper,
+the IoU+centroid tracker and ByteTrack ablation backend, the
+ego-motion-compensated optical flow and frame-differencing, the
+per-track motion features (including the second-half-growth and
+peak-area signals), the rule-cascade hazard classifier with evidence
+strings, the appearance re-identification cleanup in
+\texttt{src/track\_reid.py}, and the evaluation, alert, and
+visualisation modules --- together with all driver scripts
+(\texttt{run\_ablations.py} and \texttt{make\_final\_figures.py}
+generate every figure and table in this report) and the 74-test
+\texttt{pytest} suite. He recorded the 11 controlled walkway videos,
+hand-labelled all 61 ground-truth tracks, and wrote this manuscript.
+
+As authorized in the course instructions, ChatGPT, Claude, and Cursor
+were used in the completion of the project. Specifically, ChatGPT
+assisted with literature search, proofreading, and drafting of this
+manuscript; Claude (via Claude Code) and Cursor were used for code
+debugging and refactoring. All design decisions, experiments, labels,
+and reported results were produced and verified by the author.
+
+The code is available at our GitHub repository:
+\url{https://github.com/dsanh14/SpatialLens}.
 
 % --------------------------------------------------------------------------
 \begingroup
