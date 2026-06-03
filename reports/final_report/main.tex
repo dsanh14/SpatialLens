@@ -360,10 +360,39 @@ commits to a directional label it is essentially never wrong; what
 it does instead, when temporal evidence is thin, is abstain into
 \texttt{uncertain}. The gap between overall (82.5\%) and decidable
 (93.3\%) accuracy is explained almost entirely by short tracker
-fragments. Results are not single-video luck: 6 of 11 videos are
-perfect, the worst absolute count is IMG\_4982 (11/16 raw); a
-per-video and motion-feature-space breakdown is in
-\cref{app:dataset,app:qual}.
+fragments. Results are not single-video luck (\Cref{tab:pervideo}):
+6 of 11 videos are classified perfectly, and the worst absolute count
+is IMG\_4982 (11/16 raw), whose errors are 3 one-frame approaching
+fragments and 2 one-frame parked-bicycle labels. The
+motion-feature-space breakdown is in \cref{app:qual}.
+
+\begin{table}[t]
+  \centering\footnotesize
+  \caption{Per-video accuracy. ``raw'' is correct over evaluated
+  tracks after NMS/re-ID; ``cons.'' is correct over the 51 unique
+  physical objects.}
+  \label{tab:pervideo}
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{lrrrl}
+    \toprule
+    \textbf{Video} & \textbf{n} & \textbf{raw} & \textbf{cons.} & \textbf{dominant error} \\
+    \midrule
+    IMG\_4972 &  7 & 6/6 & 6/7 & --- \\
+    IMG\_4973 &  6 & 4/6 & 4/6 & \texttt{mov\_away}$\to$\texttt{unc.} \\
+    IMG\_4974 &  4 & 4/4 & 4/4 & --- \\
+    IMG\_4975 &  5 & 5/5 & 5/5 & --- \\
+    IMG\_4976 &  6 & 6/6 & 6/6 & --- \\
+    IMG\_4977 &  5 & 1/3 & 1/1 & \texttt{cross\_LTR}$\to$\texttt{unc.} \\
+    IMG\_4978 &  1 & 1/1 & 1/1 & --- \\
+    IMG\_4979 &  2 & 1/1 & 1/1 & --- \\
+    IMG\_4980 &  2 & 2/2 & 2/2 & --- \\
+    IMG\_4981 &  7 & 6/7 & 6/6 & \texttt{cross\_RTL}$\to$\texttt{unc.} \\
+    IMG\_4982 & 16 & 11/16 & 11/13 & \texttt{appr.}$\to$\texttt{unc.} \\
+    \midrule
+    \textbf{total} & \textbf{61} & \textbf{47/57} & \textbf{47/51} & \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \begin{figure}[t]
   \centering
@@ -394,10 +423,37 @@ meaningful but not dominant.
   \includegraphics[width=\linewidth]{ablation_study.pdf}
   \caption{Accuracy drop when each component is removed (one at a
   time) from the full system. Tracker-side cleanups dominate;
-  ByteTrack underperforms on sparse low-fps footage. Full numerics
-  in \cref{app:detail}.}
+  ByteTrack underperforms on sparse low-fps footage. Per-variant
+  numerics with macro-F1 in \Cref{tab:abl_full}.}
   \label{fig:ablations}
 \end{figure}
+
+\begin{table}[t]
+  \centering\footnotesize
+  \caption{Isolated ablation: full system minus exactly one
+  component, evaluated against both label sets. Macro-F1 reflects
+  per-class balance and is more sensitive than overall accuracy when
+  errors concentrate in low-support classes. From
+  \texttt{outputs/evaluation/ablations.csv}.}
+  \label{tab:abl_full}
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{lrrrr}
+    \toprule
+    \textbf{Variant} & \multicolumn{2}{c}{\textbf{raw}} & \multicolumn{2}{c}{\textbf{consolidated}} \\
+                     & acc. & F1 & acc. & F1 \\
+    \midrule
+    full system                       & 82.5\,\% & 0.67 & 92.2\,\% & 0.79 \\
+    \,$-$ appearance re-ID            & 76.3\,\% & 0.55 & 88.2\,\% & 0.62 \\
+    \,$-$ 2f crossing salvage         & 78.9\,\% & 0.55 & 88.2\,\% & 0.62 \\
+    \,$-$ 2f approach salvage         & 78.9\,\% & 0.66 & 88.2\,\% & 0.78 \\
+    \,$-$ trajectory reversal         & 80.7\,\% & 0.65 & 90.2\,\% & 0.78 \\
+    \,$-$ soft moving-away guard      & 80.7\,\% & 0.64 & 90.2\,\% & 0.75 \\
+    \,$-$ slow-approach               & 80.7\,\% & 0.65 & 90.2\,\% & 0.76 \\
+    \,$-$ same-frame NMS              & 81.4\,\% & 0.65 & 92.3\,\% & 0.79 \\
+    \,$-$ NMS and re-ID (both off)    & 75.4\,\% & 0.55 & 88.5\,\% & 0.62 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \noindent\textbf{Baselines:} random uniform $=\!16.7\%$,
 detector-only / always-\texttt{uncertain} $=\!29.4\%$, majority-class
@@ -424,16 +480,27 @@ motivates our ``both tracks must be 1 frame'' constraint.
 
 Of 10 residual errors, 5 are tracker-fragmentation abstentions and 5
 are classifier-side. The system's uncertainty is dominated by
-\emph{short\_track} (23 of 24 abstentions): uncertainty is the
-tracker-fragmentation tax, made auditable, not classifier ambiguity.
+\emph{short\_track} (\Cref{fig:uncert}; 23 of 24 abstentions):
+uncertainty is the tracker-fragmentation tax, made auditable, not
+classifier ambiguity.
 \Cref{fig:qual} grounds this: panels (a--c) are the canonical
 directional classes the cascade commits to, while panel (d) is the
 conservative \texttt{uncertain(short\_track)} abstention on a 1-frame
 fragment -- the safety-preserving behaviour that produces most
-off-diagonal mass in \cref{fig:cm}. A full sub-reason breakdown, an
-error taxonomy of the five root causes, and the static-class behaviour
-(F1 0.00 driven by 2 one-frame parked-bicycle labels on which the
-cascade correctly abstains) appear in \cref{app:failure}.
+off-diagonal mass in \cref{fig:cm}.
+
+\Cref{tab:errors} groups every residual error into five root causes
+with an example track and a proposed fix. Two observations matter most:
+the dominant failure is \emph{fragmentation, not misclassification}
+(short-track and static abstentions are 5 of the 10 residuals), and
+\emph{no residual lies in the safety-critical asymmetry} -- the
+\texttt{approaching}$\leftrightarrow$\texttt{moving\_away} confusion is
+zero, and the only directional mistake (IMG\_4973/person\_4,
+\texttt{moving\_away}$\to$\texttt{approaching}) is the
+monotone-bbox-growth edge case the reversal rule misses
+($\rho\!=\!1.17<1.5$). A full sub-reason breakdown and the static-class
+behaviour (F1 0.00 driven by 2 one-frame parked-bicycle labels on which
+the cascade correctly abstains) appear in \cref{app:failure}.
 
 \begin{figure}[t]
   \centering
@@ -444,6 +511,24 @@ cascade correctly abstains) appear in \cref{app:failure}.
   conservative \texttt{uncertain(short\_track)} abstention on a 1-frame
   parked bicycle. Yellow trails are centroid history.}
   \label{fig:qual}
+\end{figure}
+
+\begin{table*}[t]
+  \centering\small
+  \caption{Error taxonomy: five root causes that explain every
+  residual error, with example tracks and proposed fixes.}
+  \label{tab:errors}
+  \input{tables/error_taxonomy.tex}
+\end{table*}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{uncertainty_breakdown.pdf}
+  \caption{Sub-reason breakdown for all \texttt{uncertain}
+  predictions: 23 of 24 are \texttt{short\_track}, only 1 is
+  \texttt{low\_signal}. Abstention is the tracker-fragmentation tax
+  made auditable, not classifier ambiguity.}
+  \label{fig:uncert}
 \end{figure}
 
 \noindent\textbf{Limitations.} The evaluation set is small (61
@@ -549,8 +634,7 @@ The code is available at our GitHub repository:
 \noindent\small This supplement is organised as follows. Full
 classifier specification with all thresholds and the un-compressed
 rule cascade (\S\ref{app:spec}); dataset and class-distribution
-tables (\S\ref{app:dataset}); per-video and full-ablation tables
-(\S\ref{app:detail}); the 9 label-consolidation drops with the
+tables (\S\ref{app:dataset}); the 9 label-consolidation drops with the
 labeller's verbatim notes (\S\ref{app:cons}); motion feature space
 and qualitative examples (\S\ref{app:qual}); failure analysis details
 (\S\ref{app:failure}); reproduction commands (\S\ref{app:repro}).
@@ -691,79 +775,6 @@ overall accuracy.
 \end{table}
 
 % --------------------------------------------------------------------------
-\section{Detailed evaluation tables}
-\label{app:detail}
-% --------------------------------------------------------------------------
-
-\paragraph{Per-video accuracy.} Table~\ref{tab:pervideo} reports
-results per video against both label sets. Of the eleven videos, six
-are classified perfectly; the worst (IMG\_4982) has 16 labeled
-tracks, of which 3 are 1-frame approaching fragments and 2 are
-1-frame parked-bicycle ``static'' labels --- regimes where one
-detection genuinely cannot resolve the intent. IMG\_4973 contains
-the two trajectory-reversal errors (a monotone-bbox-growth edge
-case where the reversal rule's $\rho>1.5$ threshold does not fire).
-
-\begin{table}[h]
-  \centering\footnotesize
-  \caption{Per-video accuracy. ``raw'' is correct over evaluated
-  tracks after NMS/re-ID, ``cons.'' is correct over the 51 unique
-  physical objects.}
-  \label{tab:pervideo}
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{lrrrl}
-    \toprule
-    \textbf{Video} & \textbf{n} & \textbf{raw} & \textbf{cons.} & \textbf{dominant error} \\
-    \midrule
-    IMG\_4972 &  7 & 6/6 & 6/7 & --- \\
-    IMG\_4973 &  6 & 4/6 & 4/6 & \texttt{mov\_away}$\to$\texttt{unc.} \\
-    IMG\_4974 &  4 & 4/4 & 4/4 & --- \\
-    IMG\_4975 &  5 & 5/5 & 5/5 & --- \\
-    IMG\_4976 &  6 & 6/6 & 6/6 & --- \\
-    IMG\_4977 &  5 & 1/3 & 1/1 & \texttt{cross\_LTR}$\to$\texttt{unc.} \\
-    IMG\_4978 &  1 & 1/1 & 1/1 & --- \\
-    IMG\_4979 &  2 & 1/1 & 1/1 & --- \\
-    IMG\_4980 &  2 & 2/2 & 2/2 & --- \\
-    IMG\_4981 &  7 & 6/7 & 6/6 & \texttt{cross\_RTL}$\to$\texttt{unc.} \\
-    IMG\_4982 & 16 & 11/16 & 11/13 & \texttt{appr.}$\to$\texttt{unc.} \\
-    \midrule
-    \textbf{total} & \textbf{61} & \textbf{47/57} & \textbf{47/51} & \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\paragraph{Full ablation table.} Table~\ref{tab:abl_full} is the
-numeric backing of the bar chart in the main paper, with macro-F1
-columns added.
-
-\begin{table}[h]
-  \centering\footnotesize
-  \caption{Isolated ablation: full system minus exactly one
-  component, evaluated against both label sets. Macro-F1 reflects
-  per-class balance and is more sensitive than overall accuracy when
-  errors concentrate in low-support classes. From
-  \texttt{outputs/evaluation/ablations.csv}.}
-  \label{tab:abl_full}
-  \setlength{\tabcolsep}{3pt}
-  \begin{tabular}{lrrrr}
-    \toprule
-    \textbf{Variant} & \multicolumn{2}{c}{\textbf{raw}} & \multicolumn{2}{c}{\textbf{consolidated}} \\
-                     & acc. & F1 & acc. & F1 \\
-    \midrule
-    full system                       & 82.5\,\% & 0.67 & 92.2\,\% & 0.79 \\
-    \,$-$ appearance re-ID            & 76.3\,\% & 0.55 & 88.2\,\% & 0.62 \\
-    \,$-$ 2f crossing salvage         & 78.9\,\% & 0.55 & 88.2\,\% & 0.62 \\
-    \,$-$ 2f approach salvage         & 78.9\,\% & 0.66 & 88.2\,\% & 0.78 \\
-    \,$-$ trajectory reversal         & 80.7\,\% & 0.65 & 90.2\,\% & 0.78 \\
-    \,$-$ soft moving-away guard      & 80.7\,\% & 0.64 & 90.2\,\% & 0.75 \\
-    \,$-$ slow-approach               & 80.7\,\% & 0.65 & 90.2\,\% & 0.76 \\
-    \,$-$ same-frame NMS              & 81.4\,\% & 0.65 & 92.3\,\% & 0.79 \\
-    \,$-$ NMS and re-ID (both off)    & 75.4\,\% & 0.55 & 88.5\,\% & 0.62 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-% --------------------------------------------------------------------------
 \section{Label consolidation transparency}
 \label{app:cons}
 % --------------------------------------------------------------------------
@@ -859,28 +870,6 @@ that dominates the \texttt{static}-row of the confusion matrix.
 \label{app:failure}
 % --------------------------------------------------------------------------
 
-\begin{table*}[t]
-  \centering\small
-  \caption{Error taxonomy: five root causes that explain every
-  residual error, with example tracks and proposed fixes.}
-  \label{tab:errors}
-  \input{tables/error_taxonomy.tex}
-\end{table*}
-
-\paragraph{Uncertainty breakdown.} \Cref{fig:uncert} shows the
-sub-reason every \texttt{uncertain} prediction carries. The
-distribution is heavily concentrated on \texttt{short\_track}: 23 of
-the 24 abstentions are because the underlying track has $<\!3$ frames,
-only 1 is \texttt{low\_signal}. Uncertainty in SpatialLens is the
-tracker-fragmentation tax made auditable, not classifier ambiguity.
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=\linewidth]{uncertainty_breakdown.pdf}
-  \caption{Sub-reason breakdown for all \texttt{uncertain} predictions.}
-  \label{fig:uncert}
-\end{figure}
-
 \paragraph{Static-class result.} The static-class F1 of 0.00 should
 not be read as a general static failure mode. Only two static
 examples appear in the set, both as 1--2 frame fragments of parked
@@ -889,18 +878,6 @@ behaviour) rather than committing; with this label set we cannot
 test whether the \texttt{static} branch ever fires correctly on a
 long stationary track. A larger evaluation set with multi-frame
 static examples is the cleanest fix.
-
-\paragraph{Error taxonomy.} \Cref{tab:errors} groups the residual
-errors into five root causes with example tracks and proposed fixes.
-Two observations: the dominant failure is \emph{fragmentation, not
-misclassification} (short-track + static abstentions account for 5 of
-the 10 residuals); and \emph{no residual is in the safety-critical
-asymmetry} -- the
-\texttt{approaching}$\leftrightarrow$\texttt{moving\_away} confusion
-is zero, and the only directional mistake (IMG\_4973/person\_4
-\texttt{moving\_away}$\to$\texttt{approaching}) is the
-monotone-bbox-growth edge case the reversal rule misses
-($\rho\!=\!1.17 < 1.5$ threshold).
 
 \paragraph{Extended limitations.} Expanding the main-text limitations:
 \textbf{(i)~Dataset size} -- 61 tracks across 11 videos is small and
