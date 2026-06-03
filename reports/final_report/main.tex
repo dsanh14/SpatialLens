@@ -116,10 +116,11 @@ for Campus Navigation from Low-FPS Egocentric Video}
 A bicycle parked against a wall and a bicycle bearing down on the
 camera are both detected as ``bicycle, 0.86.'' For a sighted user the
 wider visual context carries the intent; for a blind or low-vision
-pedestrian relying on an assistive device, that context is exactly
-what is missing. The safety-critical signal is not the class label but
-the \emph{motion}: whether the agent is closing, crossing the path,
-or merely present.
+pedestrian relying on an assistive device such as Seeing
+AI~\cite{seeingai} or a wearable navigation aid~\cite{poggi2016}, that
+context is exactly what is missing. The safety-critical signal is not
+the class label but the \emph{motion}: whether the agent is closing,
+crossing the path, or merely present.
 
 We frame motion-aware hazard detection as \emph{per-track
 classification}: given a $\sim$10\,s phone clip sampled at 2\,fps,
@@ -235,9 +236,12 @@ The pipeline (\Cref{fig:pipeline}) has six stages. We summarise each,
 focusing on the four non-obvious design decisions.
 
 \subsection{Frames, detection, base tracking}
-Videos are sampled at 2\,fps, resized to 960\,px wide. YOLOv8n emits
-per-frame detections at conf~$\ge\!0.35$. A per-class IoU+centroid
-tracker matches greedily by
+Videos are sampled at 2\,fps, resized to 960\,px wide.
+YOLOv8n~\cite{ultralytics} emits per-frame detections at
+conf~$\ge\!0.35$. A per-class IoU+centroid tracker -- IoU association
+in the spirit of SORT~\cite{sort}, but augmented with a centroid term
+and an explicit gap buffer for the sparse-sampling regime -- matches
+greedily by
 $s_{dt}=0.7\cdot\textrm{IoU}(d,t)+0.3\cdot(1-\hat d_{dt})$ with a
 \texttt{max\_frame\_gap} buffer so a track survives 1--2 missed
 detections.
@@ -245,13 +249,13 @@ detections.
 \subsection{Motion features with ego-motion compensation}
 \label{sec:motion}
 Handheld panning makes every static object appear to move. We
-compensate two ways: \textbf{flow} -- Farneback dense flow between
-frames, minus the per-frame median flow vector
-(background-dominated), giving per-bbox
+compensate two ways: \textbf{flow} -- Farneback dense
+flow~\cite{farneback} between frames, minus the per-frame median flow
+vector (background-dominated), giving per-bbox
 $(\textrm{flow\_dx},\textrm{flow\_dy},\textrm{flow\_mag})$
 relative to the scene; \textbf{frame diff} -- align the previous
-frame to the current with \texttt{cv2.findTransformECC}
-(translation) before differencing. Per-track aggregates: start-to-end
+frame to the current with ECC alignment~\cite{ecc}
+(\texttt{cv2.findTransformECC}, translation) before differencing. Per-track aggregates: start-to-end
 growth $r=(A_{\textrm{end}}-A_{\textrm{start}})/A_{\textrm{start}}$,
 total $\Delta\!c_x$, mean flow magnitude, plus two sub-track signals
 for reversal detection -- second-half growth $r_{1/2}$ and peak-area
@@ -462,7 +466,8 @@ strongest trivial baseline.
 
 \noindent\textbf{ByteTrack negative result.}
 \label{sec:bytetrack}
-ByteTrack reaches only 32.8\% even after tuning. Its Kalman-gated
+ByteTrack~\cite{bytetrack} (via \texttt{supervision}~\cite{supervision})
+reaches only 32.8\% even after tuning. Its Kalman-gated
 association assumes near-continuous detections; on 2\,fps footage
 predicted positions over $\sim$500\,ms gaps rarely match observed
 ones, and short detections never ``activate'' a track -- it drops
@@ -593,33 +598,43 @@ The code is available at our GitHub repository:
 \setlength{\itemsep}{1pt plus 0.3ex}
 \bibitem{ultralytics} Glenn Jocher et al.
   \textit{Ultralytics YOLOv8}. GitHub, 2023.
+  \url{https://github.com/ultralytics/ultralytics}
 \bibitem{bytetrack} Y. Zhang et al.
   ByteTrack: Multi-Object Tracking by Associating Every Detection Box.
-  \textit{ECCV}, 2022.
+  \textit{ECCV}, 2022. \url{https://arxiv.org/abs/2110.06864}
 \bibitem{sort} A. Bewley et al.
   Simple Online and Realtime Tracking. \textit{ICIP}, 2016.
+  \url{https://arxiv.org/abs/1602.00763}
 \bibitem{supervision} Roboflow.
   \textit{Supervision: Reusable Computer Vision Tools}. 2024.
+  \url{https://github.com/roboflow/supervision}
 \bibitem{trajectronpp} T. Salzmann et al.
   Trajectron++: Dynamically-Feasible Trajectory Forecasting With
   Heterogeneous Data. \textit{ECCV}, 2020.
+  \url{https://arxiv.org/abs/2001.03093}
 \bibitem{socialstgcnn} A. Mohamed et al.
   Social-STGCNN: A Social Spatio-Temporal Graph Convolutional Neural
   Network for Human Trajectory Prediction. \textit{CVPR}, 2020.
+  \url{https://arxiv.org/abs/2002.11927}
 \bibitem{seeingai} Microsoft. \textit{Seeing AI: Talking camera app
   for those with a visual impairment}. 2017--.
+  \url{https://www.microsoft.com/en-us/garage/wall-of-fame/seeing-ai/}
 \bibitem{poggi2016} M. Poggi and S. Mattoccia.
   A wearable mobility aid for the visually impaired based on
   embedded 3D vision and deep learning. \textit{ISCC}, 2016.
+  \url{https://ieeexplore.ieee.org/document/7543741}
 \bibitem{farneback} G. Farneb\"ack.
   Two-Frame Motion Estimation Based on Polynomial Expansion.
   \textit{SCIA}, 2003.
+  \url{https://www.diva-portal.org/smash/get/diva2:273847/fulltext01.pdf}
 \bibitem{ecc} G. D. Evangelidis and E. Z. Psarakis.
   Parametric image alignment using enhanced correlation
   coefficient maximization. \textit{IEEE TPAMI}, 30(10), 2008.
+  \url{https://inria.hal.science/hal-00864385v1/document}
 \bibitem{midas} R. Ranftl et al.
   Towards Robust Monocular Depth Estimation: Mixing Datasets for
   Zero-shot Cross-dataset Transfer. \textit{IEEE TPAMI}, 2022.
+  \url{https://arxiv.org/abs/1907.01341}
 \end{thebibliography}
 \endgroup
 
