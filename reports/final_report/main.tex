@@ -113,6 +113,14 @@ for Campus Navigation from Low-FPS Egocentric Video}
 % --------------------------------------------------------------------------
 \section{Introduction}
 % --------------------------------------------------------------------------
+The motivation for this work is personal. A few months ago my own
+glasses broke, and even the short experience of crossing campus with
+badly degraded vision made it strikingly hard to judge whether an
+approaching cyclist or pedestrian was on a collision course with me.
+For blind and low-vision pedestrians that difficulty is not a temporary
+inconvenience but a constant, and far more severe, daily reality. That
+gap is what motivated SpatialLens.
+
 A bicycle parked against a wall and a bicycle bearing down on the
 camera are both detected as ``bicycle, 0.86.'' For a sighted user the
 wider visual context carries the intent; for a blind or low-vision
@@ -356,6 +364,24 @@ macro-F1, and isolated ablations that toggle one component at a time.
 \end{table}
 
 \subsection{Main quantitative results}
+\noindent\emph{Scope (read first).} These numbers come from a single
+small set --- 61 tracks across 11 videos, one author, one campus under
+daylight --- with \emph{no held-out train/test split}. We report them
+as evidence that the proposed motion cues are promising, not as a
+deployment-grade claim. To avoid fitting the evaluation set, we
+iterated only on rule \emph{structure} after each error-analysis pass
+and never tuned a numeric threshold against these labels (all constants
+are fixed in \texttt{config.yaml}). The two reporting denominators
+(\cref{sec:dataset}) and the per-class macro-F1 are included precisely
+so the small-sample weaknesses are visible rather than hidden. This
+data regime is also \emph{why} the system is rule-based rather than
+learned: with 61 labelled tracks and no held-out split, a neural
+classifier or trajectory model---which typically needs thousands of
+trajectories~\cite{trajectronpp,socialstgcnn}---has ample capacity to
+memorise the set with no way to validate that it generalised, so a
+low-parameter, interpretable cascade is the appropriate inductive
+choice here, not a shortcut. With that framing:
+
 \Cref{tab:perclass} reports per-class metrics. The safety-critical
 \texttt{approaching} class reaches \textbf{0.95\,/\,0.88}
 precision/recall -- the right asymmetry for a safety alert. Every
